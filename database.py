@@ -1,28 +1,16 @@
-import os
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc.declarative import declarative_base
 from datetime import datetime
-from enum import Enum
-from dotenv import load_dotenv
 
-
-load_dotenv()
-
-
-class ArticleStatus(Enum):
-    draft = 'draft'
-    published = 'published'
-    approved = 'approved'
-    rejected = 'rejected'
+from config import DB_URL
 
 
 Base = declarative_base()
 
 
 def connection():
-    url = os.environ['DB_URL']
-    engine = create_engine(url)  #  connect_args={})
+    engine = create_engine(DB_URL)  # connect_args={})
     session = Session(bind=engine.connect())
     return session
 
@@ -33,7 +21,6 @@ class User(Base):
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     email = Column(String, nullable=False)
-    login = Column(String, nullable=False)
     password = Column(String, nullable=False)
     roles = Column(String, nullable=False)
 
@@ -41,10 +28,10 @@ class User(Base):
 class Article(Base):
     __tablename__ = 'articles'
     id = Column(Integer, primary_key=True)
-    authors = Column(String, nullable=False)  # logins
-    editors = Column(String)  # logins
+    authors = Column(String, nullable=False)  # emails
+    editors = Column(String)  # emails
     status = Column(String, nullable=False)
-    rating = Column(Integer, nullable=False)
+    rating = Column(Integer)
     readers = Column(Integer)
     title = Column(String, nullable=False)
     text = Column(Text, nullable=False)
@@ -66,3 +53,11 @@ class Section(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     created_by_id = Column(Integer, ForeignKey('users.id'))
+
+
+class Token(Base):
+    __tablename__ = 'auth_tokens'
+    id = Column(Integer, primary_key=True)
+    used_id = Column(Integer, ForeignKey('users.id'))
+    token = Column(String, nullable=False)
+    created_at = Column(String, default=datetime.utcnow())

@@ -1,12 +1,11 @@
-import os
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from config import DB_URL
+
 
 def main():
-    url = os.environ['DB_URL']
-    engine = create_engine(url)
+    engine = create_engine(DB_URL)
     session = Session(bind=engine.connect())
 
     session.execute('''CREATE TABLE users (
@@ -14,7 +13,6 @@ def main():
     first_name VARCHAR(256) NOT NULL,
     last_name VARCHAR(256) NOT NULL,
     email VARCHAR(256) NOT NULL,
-    login VARCHAR(32) NOT NULL,
     password VARCHAR(256) NOT NULL,
     roles VARCHAR(256) NOT NULL);''')
 
@@ -41,6 +39,12 @@ def main():
     id INTEGER NOT NULL PRIMARY KEY,
     name VARCHAR(256) NOT NULL,
     created_by_id INTEGER REFERENCES users (id) ON DELETE CASCADE);''')
+
+    session.execute('''CREATE TABLE auth_tokens (
+    id INTEGER NOT NULL PRIMARY KEY,
+    user_id INTEGER REFERENCES users (id) ON DELETE CASCADE,
+    token VARCHAR(256) NOT NULL,
+    created_at VARCHAR(256);''')
 
     session.close()
 

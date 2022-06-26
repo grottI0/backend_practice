@@ -2,4 +2,4 @@
 tz.txt
 /.idea/*
 /__pycache__
-.env
+config.py

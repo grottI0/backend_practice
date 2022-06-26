@@ -2,7 +2,7 @@ from pydantic import BaseModel
 
 
 class SignInForm(BaseModel):
-    login: str
+    email: str
     password: str
 
 
@@ -10,6 +10,5 @@ class SignUpForm(BaseModel):
     first_name: str
     last_name: str
     email: str
-    login: str
     password: str
     roles: str
