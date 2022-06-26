@@ -7,7 +7,8 @@ class SignInForm(BaseModel):
 
 
 class SignUpForm(BaseModel):
-    name: str
+    first_name: str
+    last_name: str
     email: str
     login: str
     password: str
