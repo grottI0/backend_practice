@@ -55,9 +55,9 @@ class Section(Base):
     created_by_id = Column(Integer, ForeignKey('users.id'))
 
 
-class Token(Base):
+'''class Token(Base):
     __tablename__ = 'auth_tokens'
     id = Column(Integer, primary_key=True)
     used_id = Column(Integer, ForeignKey('users.id'))
     token = Column(String, nullable=False)
-    created_at = Column(String, default=datetime.utcnow())
+    created_at = Column(String, default=datetime.utcnow())'''

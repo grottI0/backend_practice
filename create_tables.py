@@ -40,11 +40,11 @@ def main():
     name VARCHAR(256) NOT NULL,
     created_by_id INTEGER REFERENCES users (id) ON DELETE CASCADE);''')
 
-    session.execute('''CREATE TABLE auth_tokens (
+    """session.execute('''CREATE TABLE auth_tokens (
     id INTEGER NOT NULL PRIMARY KEY,
     user_id INTEGER REFERENCES users (id) ON DELETE CASCADE,
     token VARCHAR(256) NOT NULL,
-    created_at VARCHAR(256);''')
+    created_at VARCHAR(256);''')"""
 
     session.close()
 
