@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Text
 from sqlalchemy.orm import Session
-from sqlalchemy.exc.declarative import declarative_base
+from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 
 from config import DB_URL
@@ -18,8 +18,7 @@ def connection():
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
-    first_name = Column(String, nullable=False)
-    last_name = Column(String, nullable=False)
+    full_name = Column(String, nullable=False)
     email = Column(String, nullable=False)
     password = Column(String, nullable=False)
     roles = Column(String, nullable=False)
@@ -37,7 +36,7 @@ class Article(Base):
     text = Column(Text, nullable=False)
     tags = Column(String, nullable=False)
     created_at = Column(String, default=datetime.utcnow())
-    section_id = Column(String, ForeignKey('sections.id'))
+    section_id = Column(Integer, ForeignKey('sections.id'))
 
 
 class Comment(Base):
@@ -52,12 +51,4 @@ class Section(Base):
     __tablename__ = 'sections'
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    created_by_id = Column(Integer, ForeignKey('users.id'))
-
-
-'''class Token(Base):
-    __tablename__ = 'auth_tokens'
-    id = Column(Integer, primary_key=True)
-    used_id = Column(Integer, ForeignKey('users.id'))
-    token = Column(String, nullable=False)
-    created_at = Column(String, default=datetime.utcnow())'''
+    creator_id = Column(Integer, ForeignKey('users.id'))
