@@ -10,7 +10,7 @@ Base = declarative_base()
 
 
 def connection():
-    engine = create_engine(DB_URL)  # connect_args={})
+    engine = create_engine(DB_URL)
     session = Session(bind=engine.connect())
     return session
 
@@ -27,8 +27,9 @@ class User(Base):
 class Article(Base):
     __tablename__ = 'articles'
     id = Column(Integer, primary_key=True)
-    authors = Column(String, nullable=False)  # emails
-    editors = Column(String)  # emails
+    creator = Column(String, nullable=False)
+    authors = Column(String, nullable=False)
+    editors = Column(String)
     status = Column(String, nullable=False)
     rating = Column(Integer)
     readers = Column(Integer)

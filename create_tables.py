@@ -25,6 +25,7 @@ def main():
 
     session.execute('''CREATE TABLE articles (
     id SERIAL NOT NULL PRIMARY KEY,
+    creator VARCHAR(256) NOT NULL,
     authors VARCHAR(256) NOT NULL,
     editors VARCHAR(256),
     status VARCHAR(256) NOT NULL,
