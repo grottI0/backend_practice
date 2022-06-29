@@ -11,7 +11,6 @@ from forms import SignUpForm, Token, DraftCreateForm, DraftEditForm, TokenData
 from database import connection, User, Article
 from config import ALGORITHM, KEY, ACCESS_TOKEN_EXPIRE_MINUTES
 
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='token')
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 app = FastAPI()
@@ -74,8 +73,8 @@ def get_token_payload(token, db):
         raise exception
 
     user = db.query(User).filter(and_(User.email == token_data.email,
-                                 User.full_name == token_data.full_name,
-                                 User.roles == token_data.roles)).one_or_none()
+                                      User.full_name == token_data.full_name,
+                                      User.roles == token_data.roles)).one_or_none()
     if user is None:
         raise exception
 
@@ -184,13 +183,13 @@ def create_article(body: DraftCreateForm, db=Depends(connection), token: str = D
             'title': body.title}
 
 
-@app.get('/article/edit_draft/{title}')
+@app.get('/article/get_draft/{title}')
 def get_draft(title, token=Depends(oauth2_scheme), db=Depends(connection)):
     payload = get_token_payload(token, db)
     current_user = payload['full_name']
 
     article = db.query(Article).filter(and_(Article.title == title,
-                                       Article.status == 'draft')).one_or_none()
+                                            Article.status == 'draft')).one_or_none()
 
     if article is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
@@ -208,12 +207,15 @@ def edit_draft(title, body: DraftEditForm, token=Depends(oauth2_scheme), db=Depe
     current_user = payload['full_name']
 
     draft = db.query(Article).filter(and_(Article.title == title,
-                                     Article.status == 'draft')).one_or_none()
+                                          Article.status == 'draft')).one_or_none()
 
     if draft is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    elif current_user not in draft.authors:
+    elif current_user not in draft.authors and \
+            current_user not in draft.editors and \
+            'writer' not in payload['roles'] and \
+            'moderator' not in payload['roles']:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     draft.text = body.text
@@ -252,7 +254,7 @@ def list_to_approve(token=Depends(oauth2_scheme), db=Depends(connection)):
 
 
 @app.post('/article/approve/{title}')
-def approve_article(title, edited: bool, other_editors: Union[str or None],
+def approve_article(title, edited_text: str, other_editors: str,
                     token=Depends(oauth2_scheme), db=Depends(connection)):
     payload = get_token_payload(token, db)
 
@@ -260,19 +262,28 @@ def approve_article(title, edited: bool, other_editors: Union[str or None],
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     article = db.query(Article).filter(and_(Article.title == title,
-                                       Article.status == 'published')).one_or_none()
+                                            Article.status == 'published')).one_or_none()
     if article is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
-    if edited:
-        editors = get_full_names_list(other_editors)
-        for i in editors:
-            user = db.query(User).filter(User.full_name == i).one_or_none()
-            if user is None:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
-        article.editors += payload['full_name'] + ' ' + other_editors
+    if edited_text == 'None':
+        pass
+    elif article.text != edited_text:
+        article.text = edited_text
+        if other_editors == 'None':
+            article.editors = payload['full_name']
+        else:
+            editors = get_full_names_list(other_editors)
+            for i in editors:
+                user = db.query(User).filter(User.full_name == i).one_or_none()
+                if user is None:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+                elif 'moderator' not in user.roles and 'writer' not in user.roles:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+            article.editors = f'{payload["full_name"]} {other_editors}'
 
     article.status = 'approved'
+    article.readers = article.rating = 0
     db.commit()
 
     return {'status': status.HTTP_200_OK}
@@ -286,7 +297,7 @@ def reject_article(title, message: str, token=Depends(oauth2_scheme), db=Depends
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     article = db.query(Article).filter(and_(Article.title == title,
-                                       Article.status == 'published')).one_or_none()
+                                            Article.status == 'published')).one_or_none()
     if article is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
@@ -294,6 +305,28 @@ def reject_article(title, message: str, token=Depends(oauth2_scheme), db=Depends
     article.status = 'rejected'
     article.text += message
     db.commit()
+
+    return {'status': status.HTTP_200_OK}
+
+
+@app.get('/article/to_draft/{title}')
+def to_draft(title, token=Depends(oauth2_scheme), db=Depends(connection)):
+    payload = get_token_payload(token, db)
+    if 'writer' not in payload['roles']:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    article = db.query(Article).filter(Article.title == title).one_or_none()
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+
+    if payload['full_name'] not in article.authors:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    if article.status == 'approved' or article.status == 'rejected':
+        article.status = 'draft'
+        db.commit()
+
+    return {'status': status.HTTP_200_OK}
 
 
 @app.get('/article/{title}')

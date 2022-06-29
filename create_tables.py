@@ -31,7 +31,7 @@ def main():
     status VARCHAR(256) NOT NULL,
     rating INTEGER,
     readers INTEGER,
-    title VARCHAR(256) NOT NULL,
+    title VARCHAR(256) NOT NULL UNIQUE,
     text TEXT NOT NULL,
     tags VARCHAR(256) NOT NULL,
     created_at VARCHAR(256) NOT NULL,
