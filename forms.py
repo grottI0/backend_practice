@@ -7,7 +7,7 @@ class SignUpForm(BaseModel):
     last_name: str
     email: str
     password: str
-    role: str
+    roles: str
 
 
 class Token(BaseModel):
@@ -21,23 +21,21 @@ class TokenData(BaseModel):
     full_name: Union[str, None] = None
 
 
-class DraftForm(BaseModel):
+class DraftCreateForm(BaseModel):
     title: str
     text: str
     tags: str
     authors: str
 
 
-class PublishedForm(DraftForm):
-    created_at: Union[str, None] = None
-    authors: Union[str, None]  # full names
-    editors: Union[str, None] = None  # full names
+class DraftEditForm(BaseModel):
+    text: str
+    tags: str
 
 
-class ApprovedForm(PublishedForm):
-    rating: Union[int, None] = None
-    readers: Union[int, None] = None
-
-
-class RejectedForm(PublishedForm):
+class RejectedResponse(BaseModel):
+    title: str
+    creator: str
+    authors: str
+    moderator: str
     message: str
