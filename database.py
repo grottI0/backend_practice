@@ -38,6 +38,7 @@ class Article(Base):
     tags = Column(String, nullable=False)
     created_at = Column(String, default=datetime.utcnow())
     section_id = Column(Integer, ForeignKey('sections.id'))
+    number_of_ratings = Column(Integer)
 
 
 class Comment(Base):

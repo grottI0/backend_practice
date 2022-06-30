@@ -14,7 +14,7 @@ def main():
     session.execute('''CREATE TABLE users (
     id SERIAL NOT NULL PRIMARY KEY,
     full_name VARCHAR(256) NOT NULL,
-    email VARCHAR(256) NOT NULL,
+    email VARCHAR(256) NOT NULL UNIQUE,
     password VARCHAR(256) NOT NULL,
     roles VARCHAR(256) NOT NULL);''')
 
@@ -30,6 +30,7 @@ def main():
     editors VARCHAR(256),
     status VARCHAR(256) NOT NULL,
     rating INTEGER,
+    number_of_ratings INTEGER,
     readers INTEGER,
     title VARCHAR(256) NOT NULL UNIQUE,
     text TEXT NOT NULL,
