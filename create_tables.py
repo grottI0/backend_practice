@@ -16,7 +16,8 @@ def main():
     full_name VARCHAR(256) NOT NULL,
     email VARCHAR(256) NOT NULL UNIQUE,
     password VARCHAR(256) NOT NULL,
-    roles VARCHAR(256) NOT NULL);''')
+    roles VARCHAR(256) NOT NULL),
+    blocked BOOLEAN DEFAULT false;''')
 
     session.execute('''CREATE TABLE sections (
     id SERIAL NOT NULL PRIMARY KEY,

@@ -17,9 +17,8 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     id: int
-    email: Union[str, None] = None
     roles: str
-    full_name: Union[str, None] = None
+    blocked: bool
 
 
 class DraftCreateForm(BaseModel):

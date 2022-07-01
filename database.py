@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Text
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Text, BOOLEAN
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -22,6 +22,7 @@ class User(Base):
     email = Column(String, nullable=False)
     password = Column(String, nullable=False)
     roles = Column(String, nullable=False)
+    blocked = Column(BOOLEAN, default=False)
 
 
 class Article(Base):
