@@ -7,7 +7,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy import and_
 
-from forms import SignUpForm, Token, DraftCreateForm, DraftEditForm, TokenData, CommentForm
+from forms import SignUpForm, Token, DraftCreateForm, DraftEditForm, TokenData
 from database import connection, User, Article, Comment
 from config import ALGORITHM, KEY, ACCESS_TOKEN_EXPIRE_MINUTES
 
@@ -340,7 +340,7 @@ def to_draft(title, token=Depends(oauth2_scheme), db=Depends(connection)):
 
 # Добавление читателем коментария к статье и его оценка этой статьи
 @app.post('/article/{title}/create_comment')
-def create_comment(title, body: CommentForm, token=Depends(oauth2_scheme), db=Depends(connection)):
+def create_comment(title, text: str, token=Depends(oauth2_scheme), db=Depends(connection)):
     payload = get_token_payload(token, db)
 
     if 'reader' not in payload['roles'] or payload['blocked']:
@@ -351,13 +351,10 @@ def create_comment(title, body: CommentForm, token=Depends(oauth2_scheme), db=De
     article = db.query(Article).filter(and_(Article.title == title,
                                             Article.status == 'approved')).one_or_none()
 
-    if 1 > body.rating > 5 and current_user is None and article is None and body.text == '':
+    if current_user is None and article is None and text == '':
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
-    article.rating = (article.rating * article.number_of_ratings + body.rating) // (article.number_of_ratings + 1)
-    article.number_of_ratings += 1
-
-    comment = Comment(text=body.text,
+    comment = Comment(text=text,
                       article_id=article.id,
                       user_id=current_user.id)
     db.add(comment)
@@ -377,21 +374,17 @@ def delete_comment(comment_id, token=Depends(oauth2_scheme), db=Depends(connecti
     author_id = comment.user_id
 
     current_user_id = db.query(User.id).filter(User.id == payload['id']).one_or_none()
-
     if ('moderator' not in payload['roles'] and author_id != current_user_id) or payload['blocked']:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    article = db.query(Article).filter(Article.id == comment.article_id).one_or_none()
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     db.query(Comment).filter(Comment.id == comment_id).delete()
     db.commit()
 
     return {'status': status.HTTP_200_OK}
-
-
-# не готово
-@app.get('/article/{title}')
-def get_article(title, token=Depends(oauth2_scheme), db=Depends(connection)):
-    pass
-    # возвращает название, авторов, теги, секцию и все комментарии
 
 
 # Получение данных о пользователе по его id
@@ -443,3 +436,50 @@ def blocking_user(user_id, operation, token=Depends(oauth2_scheme), db=Depends(c
     db.commit()
 
     return {'status': status.HTTP_200_OK}
+
+
+# Получение данных о статье и ее комментариев
+@app.get('/article/{title}')
+def get_article(title, token=Depends(oauth2_scheme), db=Depends(connection)):
+    payload = get_token_payload(token, db)
+
+    current_user_id = db.query(User.id).filter(User.id == payload['id']).one_or_none()
+
+    if not token or current_user_id is None or payload['blocked'] or 'reader' not in payload['roles']:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    article = db.query(Article).filter(Article.title == title).one_or_none()
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    article.readers += 1
+    db.commit()
+
+    comments_list = db.query(Comment.id,
+                             Comment.text,
+                             Comment.user_id,
+                             User.full_name).join(User).filter(Comment.article_id == article.id).all()
+
+    if comments_list is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    authors = ''
+    authors_ids = article.authors.split()
+    for i in authors_ids:
+        user = db.query(User.full_name).filter(User.id == i).one_or_none()
+        authors += user[0] + ' '
+
+    response = {'title': article.title,
+                'authors': authors,
+                'tags': article.tags,
+                'number_of_readers': article.readers,
+                'text': article.text,
+                'created_at': article.created_at,
+                'comments': {}}
+
+    comments = {}
+    for i in comments_list:
+        comment = {i[0]: {'user_id': i[3], 'full_name': i[2], 'text': i[1]}}
+        comments.update(comment)
+    response.update({'comments': comments})
+
+    return response

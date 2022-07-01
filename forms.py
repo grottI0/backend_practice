@@ -31,8 +31,3 @@ class DraftCreateForm(BaseModel):
 class DraftEditForm(BaseModel):
     text: str
     tags: str
-
-
-class CommentForm(BaseModel):
-    text: str
-    rating: int
