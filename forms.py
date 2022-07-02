@@ -18,6 +18,7 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     id: int
     roles: str
+    full_name: str
     blocked: bool
 
 

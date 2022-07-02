@@ -5,7 +5,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 
 from forms import SignUpForm, Token, DraftCreateForm, DraftEditForm, TokenData
 from database import connection, User, Article, Comment
@@ -44,17 +44,33 @@ def get_token_payload(token, db):
                 raise exception
         token_data = TokenData(id=payload['id'],
                                roles=payload['roles'],
+                               full_name=payload['full_name'],
                                blocked=payload['blocked'])
     except JWTError:
         raise exception
 
     user = db.query(User).filter(and_(User.id == token_data.id,
                                       User.roles == token_data.roles,
+                                      User.full_name == token_data.full_name,
                                       User.blocked == token_data.blocked)).one_or_none()
     if user is None:
         raise exception
 
     return payload
+
+
+def get_full_names_list(s: str):
+    words_list = s.split(' ')
+    result = []
+    for i in range(len(words_list) - (len(words_list) // 2)):
+        try:
+            words_list[i], words_list[i + 1] = words_list[i].capitalize(), words_list[i + 1].capitalize()
+            words_list[i] = words_list[i] + ' ' + words_list[i + 1]
+            words_list.remove(words_list[i + 1])
+        except IndexError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        result.append(words_list[i])
+    return result
 
 
 # Добавление пользователя в базу данных
@@ -103,12 +119,10 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     if not verify_password(form_data.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
-    if user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
-
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(data={'id': user.id,
                                              'roles': user.roles,
+                                             'full_name': user.full_name,
                                              'blocked': user.blocked},
                                        expires_delta=access_token_expires)
 
@@ -116,13 +130,13 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 
 # Получение данных пользователя через токен
-@app.get('/user')
+@app.get('/profile')
 def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(connection)):
     payload = get_token_payload(token, db)
     user_id = payload['id']
     user = db.query(User).filter(User.id == user_id).one_or_none()
 
-    return user
+    return {}
 
 
 # -
@@ -146,7 +160,7 @@ def create_article(body: DraftCreateForm, token=Depends(oauth2_scheme), db=Depen
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     if body.other_authors != 'None':
-        other_authors = body.other_authors.split()
+        other_authors = get_full_names_list(body.other_authors)
         other_authors_ids = ''
 
         for i in range(len(other_authors)):
@@ -178,13 +192,14 @@ def create_article(body: DraftCreateForm, token=Depends(oauth2_scheme), db=Depen
 
 
 # Получение данных черновика для дальнейшего редактирования
-@app.get('/article/get_draft/{title}')
-def get_draft(title, token=Depends(oauth2_scheme), db=Depends(connection)):
+@app.get('/article/get_disapproved/{title}')
+def get_disapproved(title, token=Depends(oauth2_scheme), db=Depends(connection)):
     payload = get_token_payload(token, db)
     current_user_id = str(payload['id'])
 
     article = db.query(Article).filter(and_(Article.title == title,
-                                            Article.status == 'draft')).one_or_none()
+                                            or_(Article.status == 'draft',
+                                                Article.status == 'rejected'))).one_or_none()
 
     if article is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
@@ -192,8 +207,12 @@ def get_draft(title, token=Depends(oauth2_scheme), db=Depends(connection)):
     elif current_user_id not in article.authors or payload['blocked']:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
-    return {'draft_text': article.text,
-            'draft_tags': article.tags}
+    if article.status == 'rejected':
+        article.status = 'draft'
+        db.commit()
+
+    return {'text': article.text,
+            'tags': article.tags}
 
 
 # Отправка отредактированного черновика и его обновление в базе данных
@@ -214,6 +233,8 @@ def edit_draft(title, body: DraftEditForm, token=Depends(oauth2_scheme), db=Depe
     draft.text = body.text
     draft.tags = body.tags
     db.commit()
+
+    return {'status': status.HTTP_200_OK}
 
 
 # Смена состояния статьи на "опубликована"
@@ -274,7 +295,7 @@ def approve_article(title, edited_text: str, other_editors: str,
         if other_editors == 'None':
             article.editors = str(payload['id'])
         else:
-            other_editors_list = other_editors.split()
+            other_editors_list = get_full_names_list(other_editors)
             other_editors_ids = ''
             for i in other_editors_list:
                 user = db.query(User).filter(User.full_name == i).one_or_none()
@@ -351,7 +372,7 @@ def create_comment(title, text: str, token=Depends(oauth2_scheme), db=Depends(co
     article = db.query(Article).filter(and_(Article.title == title,
                                             Article.status == 'approved')).one_or_none()
 
-    if current_user is None and article is None and text == '':
+    if current_user is None or article is None or text == '':
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     comment = Comment(text=text,
@@ -392,7 +413,7 @@ def delete_comment(comment_id, token=Depends(oauth2_scheme), db=Depends(connecti
 def get_any_user(user_id, token=Depends(oauth2_scheme), db=Depends(connection)):
     payload = get_token_payload(token, db)
 
-    if not token or payload['blocked']:
+    if not token or (payload['blocked'] and user_id != payload['id']):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     user = db.query(User).filter(User.id == user_id).one_or_none()
@@ -411,6 +432,7 @@ def get_any_user(user_id, token=Depends(oauth2_scheme), db=Depends(connection)):
     return {'id': user.id,
             'full_name': user.full_name,
             'email': user.email,
+            'blocked': payload['blocked'],
             'roles': user.roles,
             'articles': titles}
 
@@ -481,5 +503,21 @@ def get_article(title, token=Depends(oauth2_scheme), db=Depends(connection)):
         comment = {i[0]: {'user_id': i[3], 'full_name': i[2], 'text': i[1]}}
         comments.update(comment)
     response.update({'comments': comments})
+
+    return response
+
+
+@app.get('/articles')
+def get_articles(token=Depends(oauth2_scheme), db=Depends(connection)):
+    payload = get_token_payload(token, db)
+    if payload['blocked']:
+        HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    articles = db.query(Article).filter(Article.status == 'approved').all()
+    response = {}
+
+    for i in articles:
+        response.update({i.id: {'title': i.title,
+                                'tags': i.tags}})
 
     return response
