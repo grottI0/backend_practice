@@ -6,9 +6,10 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy import and_, or_
+from pydantic import conint
 
 from forms import SignUpForm, Token, DraftCreateForm, DraftEditForm, TokenData
-from database import connection, User, Article, Comment
+from database import connection, User, Article, Comment, Rating
 from config import ALGORITHM, KEY, ACCESS_TOKEN_EXPIRE_MINUTES
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='token')
@@ -129,16 +130,6 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return {'access_token': access_token, 'token_type': 'bearer'}
 
 
-# Получение данных пользователя через токен
-@app.get('/profile')
-def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(connection)):
-    payload = get_token_payload(token, db)
-    user_id = payload['id']
-    user = db.query(User).filter(User.id == user_id).one_or_none()
-
-    return {}
-
-
 # -
 @app.get('/article/create_draft')
 def get_draft_creation(token=Depends(oauth2_scheme), db=Depends(connection)):
@@ -242,7 +233,6 @@ def edit_draft(title, body: DraftEditForm, token=Depends(oauth2_scheme), db=Depe
 def publish_article(title, token=Depends(oauth2_scheme), db=Depends(connection)):
     payload = get_token_payload(token, db)
     current_user_id = str(payload['id'])
-    print(type(title))
     article = db.query(Article).filter(and_(Article.creator == current_user_id, Article.title == title)).one_or_none()
     if article is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
@@ -451,6 +441,26 @@ def blocking_user(user_id, operation, token=Depends(oauth2_scheme), db=Depends(c
 
     if operation == 'block':
         user.blocked = True
+        db.query(Comment).filter(Comment.user_id == user.id).delete()
+        articles = db.query(Article).filter(Article.creator == str(user.id)).all()
+        for i in articles:
+            i.status = 'draft'
+
+        ratings = db.query(Rating).filter(Rating.user_id == user.id).all()
+        if ratings is None:
+            pass
+        else:
+            for i in ratings:
+                rated_article = db.query(Article).filter(Article.id == i.article_id).one_or_none()
+                try:
+                    rated_article.rating = (rated_article.rating * rated_article.number_of_ratings - i.rating) // \
+                                           (rated_article.number_of_ratings - 1)
+                except ZeroDivisionError:
+                    rated_article.rating = 0
+                rated_article.number_of_ratings -= 1
+
+        db.query(Rating).filter(Rating.user_id == user.id).delete()
+
     elif operation == 'unblock':
         user.blocked = False
     else:
@@ -521,3 +531,32 @@ def get_articles(token=Depends(oauth2_scheme), db=Depends(connection)):
                                 'tags': i.tags}})
 
     return response
+
+
+@app.get('/article/{title}/rate')
+def rate_article(title, rating: conint(gt=0, lt=6), token=Depends(oauth2_scheme), db=Depends(connection)):
+    payload = get_token_payload(token, db)
+
+    if 'reader' not in payload['roles'] or payload['blocked']:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    article = db.query(Article).filter(Article.title == title).one_or_none()
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    existed_rating = db.query(Rating).filter(and_(Rating.user_id == payload['id'],
+                                                  Rating.article_id == article.id)).one_or_none()
+    if not(existed_rating is None):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+
+    article.rating = (article.rating * article.number_of_ratings + rating) // (article.number_of_ratings + 1)
+    article.number_of_ratings += 1
+
+    row = Rating(user_id=payload['id'],
+                 article_id=article.id,
+                 rating=rating)
+
+    db.add(row)
+    db.commit()
+
+    return {'status': status.HTTP_200_OK}

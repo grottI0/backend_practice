@@ -55,3 +55,11 @@ class Section(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     creator_id = Column(Integer, ForeignKey('users.id'))
+
+
+class Rating(Base):
+    __tablename__ = 'ratings'
+    id = Column(Integer, primary_key=True)
+    article_id = Column(Integer, ForeignKey('articles.id'))
+    user_id = Column(Integer, ForeignKey('users.id'))
+    rating = Column(Integer, nullable=False)
