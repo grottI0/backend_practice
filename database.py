@@ -37,7 +37,7 @@ class Article(Base):
     title = Column(String, nullable=False)
     text = Column(Text, nullable=False)
     tags = Column(String, nullable=False)
-    created_at = Column(String, default=datetime.utcnow())
+    approved_at = Column(String)
     section_id = Column(Integer, ForeignKey('sections.id'))
     number_of_ratings = Column(Integer)
 

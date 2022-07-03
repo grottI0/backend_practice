@@ -25,9 +25,14 @@ class DraftCreateForm(BaseModel):
     title: str
     text: str
     tags: str
-    other_authors: str
+    other_authors: str  # ids str -> '1 3'
 
 
 class DraftEditForm(BaseModel):
     text: str
     tags: str
+
+
+class ApprovedEditForm(BaseModel):
+    edited_text: str
+    other_editors: str  # ids str

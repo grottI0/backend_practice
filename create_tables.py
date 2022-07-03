@@ -36,7 +36,7 @@ def main():
     title VARCHAR(256) NOT NULL UNIQUE,
     text TEXT NOT NULL,
     tags VARCHAR(256) NOT NULL,
-    created_at VARCHAR(256) NOT NULL,
+    approved_at VARCHAR(256),
     section_id INTEGER REFERENCES sections (id) ON DELETE CASCADE);''')
 
     session.execute('''CREATE TABLE comments (

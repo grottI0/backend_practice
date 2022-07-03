@@ -8,7 +8,7 @@ from passlib.context import CryptContext
 from sqlalchemy import and_, or_
 from pydantic import conint
 
-from forms import SignUpForm, Token, DraftCreateForm, DraftEditForm, TokenData
+from forms import SignUpForm, Token, DraftCreateForm, DraftEditForm, TokenData, ApprovedEditForm
 from database import connection, User, Article, Comment, Rating
 from config import ALGORITHM, KEY, ACCESS_TOKEN_EXPIRE_MINUTES
 
@@ -150,22 +150,20 @@ def create_article(body: DraftCreateForm, token=Depends(oauth2_scheme), db=Depen
     if 'writer' not in payload['roles'] or payload['blocked']:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
-    if body.other_authors != 'None':
-        other_authors = get_full_names_list(body.other_authors)
-        other_authors_ids = ''
+    body.other_authors = body.other_authors.lower()
 
-        for i in range(len(other_authors)):
-            user = db.query(User).filter(User.full_name == other_authors[i]).one_or_none()
+    if body.other_authors != 'none':
+        other_authors_ids = body.other_authors.split()
+
+        for i in range(len(other_authors_ids)):
+            user = db.query(User).filter(User.id == other_authors_ids[i]).one_or_none()
             if user is None or user.id == payload['id']:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
             elif 'writer' not in user.roles:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
-            else:
-                other_authors_ids += str(user.id) + ' '
-
-        authors = f'{creator_id} {other_authors_ids}'
+        authors = f'{creator_id} {" ".join(other_authors_ids)}'
     else:
         authors = creator_id
 
@@ -266,8 +264,7 @@ def list_to_approve(token=Depends(oauth2_scheme), db=Depends(connection)):
 # если не требуется исправление в поля edited_text и other_editors отправляется строка "None"
 # если модератор является единственным редактором в поле other_editors отправляется строка "None"
 @app.post('/article/approve/{title}')
-def approve_article(title, edited_text: str, other_editors: str,
-                    token=Depends(oauth2_scheme), db=Depends(connection)):
+def approve_article(title, body: ApprovedEditForm, token=Depends(oauth2_scheme), db=Depends(connection)):
     payload = get_token_payload(token, db)
 
     if 'moderator' not in payload['roles'] or payload['blocked']:
@@ -278,30 +275,33 @@ def approve_article(title, edited_text: str, other_editors: str,
     if article is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
-    if edited_text == 'None':
+    body.edited_text, body.other_editors = body.edited_text.lower(), body.other_editors.lower()
+
+    if body.edited_text == 'none':
         pass
-    elif article.text != edited_text:
-        article.text = edited_text
-        if other_editors == 'None':
+    elif article.text != body.edited_text:
+        article.text = body.edited_text
+        if body.other_editors == 'none':
             article.editors = str(payload['id'])
         else:
-            other_editors_list = get_full_names_list(other_editors)
-            other_editors_ids = ''
-            for i in other_editors_list:
-                user = db.query(User).filter(User.full_name == i).one_or_none()
+            other_editors_ids = body.other_editors.split()
+            for i in other_editors_ids:
+                user = db.query(User).filter(User.id == i).one_or_none()
                 if user is None or (user.id == payload['id']):
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+
+                elif not(article.editors is None):
+                    if str(user.id) in article.editors:
+                        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
                 elif 'moderator' not in user.roles and 'writer' not in user.roles:
                     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
-                else:
-                    other_editors_ids += str(user.id) + ' '
-
-            article.editors = f'{str(payload["id"])} {other_editors_ids}'
+            article.editors = f'{str(payload["id"])} {" ".join(other_editors_ids)}'
 
     article.status = 'approved'
     article.readers = article.rating = article.number_of_ratings = 0
+    article.approved_at = datetime.utcnow()
     db.commit()
 
     return {'status': status.HTTP_200_OK}
@@ -342,6 +342,7 @@ def to_draft(title, token=Depends(oauth2_scheme), db=Depends(connection)):
 
     if article.status == 'approved' or article.status == 'rejected':
         article.status = 'draft'
+        article.approved_at = None
         db.commit()
 
         return {'status': status.HTTP_200_OK}
@@ -427,7 +428,9 @@ def get_any_user(user_id, token=Depends(oauth2_scheme), db=Depends(connection)):
             'articles': titles}
 
 
-# Меняет статус пользователя на "заблокирован" или "не заблокирован"
+# Меняет статус пользователя на
+# "заблокирован" (в этом случае удаляет комментарии и оценки пользователя, а его статус его статей изменяет на черновик)
+# или "не заблокирован"
 @app.get('/user/{user_id}/{block_or_unblock}}')
 def blocking_user(user_id, operation, token=Depends(oauth2_scheme), db=Depends(connection)):
     payload = get_token_payload(token, db)
@@ -505,7 +508,7 @@ def get_article(title, token=Depends(oauth2_scheme), db=Depends(connection)):
                 'tags': article.tags,
                 'number_of_readers': article.readers,
                 'text': article.text,
-                'created_at': article.created_at,
+                'date': article.approved_at,
                 'comments': {}}
 
     comments = {}
@@ -517,19 +520,25 @@ def get_article(title, token=Depends(oauth2_scheme), db=Depends(connection)):
     return response
 
 
-@app.get('/articles')
+@app.get('/articles/new')
 def get_articles(token=Depends(oauth2_scheme), db=Depends(connection)):
     payload = get_token_payload(token, db)
     if payload['blocked']:
         HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
-    articles = db.query(Article).filter(Article.status == 'approved').all()
+    articles = db.query(Article).filter(Article.status == 'approved').order_by(Article.approved_at).all()
+    if articles is None:
+        return {}
+
+    articles.reverse()
     response = {}
-
+    today = datetime.utcnow()
     for i in articles:
-        response.update({i.id: {'title': i.title,
-                                'tags': i.tags}})
-
+        delta = today - datetime.strptime(i.approved_at[:10], '%Y-%m-%d')
+        if delta.days <= 3:
+            response.update({i.approved_at: {'id': i.id, 'title': i.title, 'tags': i.tags}})
+        else:
+            break
     return response
 
 
