@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 
 class SignUpForm(BaseModel):
@@ -25,7 +26,7 @@ class DraftCreateForm(BaseModel):
     title: str
     text: str
     tags: str
-    other_authors: str  # ids str -> '1 3'
+    other_authors: Optional[str]  # ids str -> '1 3'
 
 
 class DraftEditForm(BaseModel):
@@ -34,5 +35,5 @@ class DraftEditForm(BaseModel):
 
 
 class ApprovedEditForm(BaseModel):
-    edited_text: str
-    other_editors: str  # ids str
+    edited_text: Optional[str]
+    other_editors: Optional[str]  # ids str

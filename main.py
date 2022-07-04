@@ -150,22 +150,18 @@ def create_article(body: DraftCreateForm, token=Depends(oauth2_scheme), db=Depen
     if 'writer' not in payload['roles'] or payload['blocked']:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
-    body.other_authors = body.other_authors.lower()
+    body.other_authors = body.other_authors
+    other_authors_ids = body.other_authors.split()
 
-    if body.other_authors != 'none':
-        other_authors_ids = body.other_authors.split()
+    for i in range(len(other_authors_ids)):
+        user = db.query(User).filter(User.id == other_authors_ids[i]).one_or_none()
+        if user is None or user.id == payload['id']:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
-        for i in range(len(other_authors_ids)):
-            user = db.query(User).filter(User.id == other_authors_ids[i]).one_or_none()
-            if user is None or user.id == payload['id']:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        elif 'writer' not in user.roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
-            elif 'writer' not in user.roles:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
-
-        authors = f'{creator_id} {" ".join(other_authors_ids)}'
-    else:
-        authors = creator_id
+    authors = f'{creator_id} {" ".join(other_authors_ids)}'
 
     article = Article(creator=creator_id,
                       title=body.title,
@@ -261,8 +257,8 @@ def list_to_approve(token=Depends(oauth2_scheme), db=Depends(connection)):
 
 
 # Смена состояния статьи на "одобрена" + утверждение числа редакторов и исправление ошибок модератором
-# если не требуется исправление в поля edited_text и other_editors отправляется строка "None"
-# если модератор является единственным редактором в поле other_editors отправляется строка "None"
+# если не требуется исправление в поля edited_text и other_editors отправляется пустая строка
+# если модератор является единственным редактором в поле other_editors отправляется пустая строка
 @app.post('/article/approve/{title}')
 def approve_article(title, body: ApprovedEditForm, token=Depends(oauth2_scheme), db=Depends(connection)):
     payload = get_token_payload(token, db)
@@ -275,29 +271,23 @@ def approve_article(title, body: ApprovedEditForm, token=Depends(oauth2_scheme),
     if article is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
-    body.edited_text, body.other_editors = body.edited_text.lower(), body.other_editors.lower()
-
-    if body.edited_text == 'none':
-        pass
-    elif article.text != body.edited_text:
+    if body.edited_text != '':
         article.text = body.edited_text
-        if body.other_editors == 'none':
-            article.editors = str(payload['id'])
-        else:
-            other_editors_ids = body.other_editors.split()
-            for i in other_editors_ids:
-                user = db.query(User).filter(User.id == i).one_or_none()
-                if user is None or (user.id == payload['id']):
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
-                elif not(article.editors is None):
-                    if str(user.id) in article.editors:
-                        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+    other_editors_ids = body.other_editors.split()
+    for i in other_editors_ids:
+        user = db.query(User).filter(User.id == i).one_or_none()
+        if user is None or (user.id == payload['id']):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
-                elif 'moderator' not in user.roles and 'writer' not in user.roles:
-                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        elif article.editors is not None:
+            if str(user.id) in article.editors:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
-            article.editors = f'{str(payload["id"])} {" ".join(other_editors_ids)}'
+        elif 'moderator' not in user.roles and 'writer' not in user.roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    article.editors = f'{str(payload["id"])} {" ".join(other_editors_ids)}'
 
     article.status = 'approved'
     article.readers = article.rating = article.number_of_ratings = 0
@@ -520,17 +510,74 @@ def get_article(title, token=Depends(oauth2_scheme), db=Depends(connection)):
     return response
 
 
+@app.get('/articles')
+def search_articles(rating: str = None, number_of_readers: str = None, title: str = None,
+                    content: str = None, tags: str = None, authors: str = None,
+                    date: str = None, token=Depends(oauth2_scheme), db=Depends(connection)):
+    payload = get_token_payload(token, db)
+
+    if 'reader' not in payload['roles'] or payload['blocked']:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    if rating:
+        articles = db.query(Article).filter(and_(Article.status == 'approved',
+                                                 Article.rating == rating)).all()
+    elif number_of_readers:
+        articles = db.query(Article).filter(and_(Article.status == 'approved',
+                                                 Article.readers == number_of_readers)).all()
+    elif title:
+        article = db.query(Article).filter(and_(Article.status == 'approved',
+                                                Article.title == title)).one_or_none()
+        articles = [article]
+    elif content:
+        all_articles = db.query(Article).filter(Article.status == 'approved').all()
+        articles = []
+        for i in all_articles:
+            if content.lower() in i.text.lower():
+                articles.append(i)
+    elif tags:
+        all_articles = db.query(Article).filter(Article.status == 'approved').all()
+        articles = []
+        tags_list = tags.split()
+        for i in all_articles:
+            for j in tags_list:
+                if j in i.tags:
+                    articles.append(i)
+    elif authors:
+        all_articles = db.query(Article).filter(Article.status == 'approved').all()
+        articles = []
+        authors_ids = authors.split()
+        for i in all_articles:
+            for j in authors_ids:
+                if j in i.authors:
+                    articles.append(i)
+    elif date:
+        all_articles = db.query(Article).filter(Article.status == 'approved').all()
+        articles = []
+        for i in all_articles:
+            if i.approved_at[:10] == date:
+                articles.append(i)
+
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+    response = {}
+
+    for i in articles:
+        response.update({i.id: i.title})
+
+    return response
+
+
 @app.get('/articles/new')
-def get_articles(token=Depends(oauth2_scheme), db=Depends(connection)):
+def get_new_articles(token=Depends(oauth2_scheme), db=Depends(connection)):
     payload = get_token_payload(token, db)
     if payload['blocked']:
-        HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
-    articles = db.query(Article).filter(Article.status == 'approved').order_by(Article.approved_at).all()
+    articles = db.query(Article).filter(Article.status == 'approved').order_by(Article.approved_at.desc()).all()
     if articles is None:
         return {}
 
-    articles.reverse()
     response = {}
     today = datetime.utcnow()
     for i in articles:
