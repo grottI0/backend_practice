@@ -18,7 +18,6 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     id: int
     roles: str
-    full_name: str
     blocked: bool
 
 
@@ -30,10 +29,17 @@ class DraftCreateForm(BaseModel):
 
 
 class DraftEditForm(BaseModel):
+    title: str
     text: str
     tags: str
 
 
 class ApprovedEditForm(BaseModel):
+    title: str
     edited_text: Optional[str]
     other_editors: Optional[str]  # ids str
+
+
+class RejectForm(BaseModel):
+    title: str
+    message: str

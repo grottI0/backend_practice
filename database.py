@@ -34,7 +34,7 @@ class Article(Base):
     status = Column(String, nullable=False)
     rating = Column(Integer)
     readers = Column(Integer)
-    title = Column(String, nullable=False)
+    title = Column(String, nullable=False, unique=True)
     text = Column(Text, nullable=False)
     tags = Column(String, nullable=False)
     approved_at = Column(String)
@@ -53,7 +53,7 @@ class Comment(Base):
 class Section(Base):
     __tablename__ = 'sections'
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
+    name = Column(String, nullable=False, unique=True)
     creator_id = Column(Integer, ForeignKey('users.id'))
 
 
