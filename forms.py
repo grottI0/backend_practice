@@ -10,6 +10,11 @@ class SignUpForm(BaseModel):
     roles: str
 
 
+class SignInForm(BaseModel):
+    email: str
+    password: str
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str

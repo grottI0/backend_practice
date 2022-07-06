@@ -1,7 +1,6 @@
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Text, BOOLEAN
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime
 
 from config import DB_URL
 
@@ -63,3 +62,10 @@ class Rating(Base):
     article_id = Column(Integer, ForeignKey('articles.id'))
     user_id = Column(Integer, ForeignKey('users.id'))
     rating = Column(Integer, nullable=False)
+
+
+class SessionTable(Base):
+    __tablename__ = 'sessions'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    session_id = Column(String, nullable=False, unique=True)

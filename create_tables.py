@@ -51,6 +51,11 @@ def main():
     article_id INTEGER REFERENCES articles (id) ON DELETE CASCADE,
     rating INTEGER NOT NULL);''')
 
+    session.execute('''CREATE TABLE sessions (
+    id SERIAL NOT NULL PRIMARY KEY,
+    user_id INTEGER REFERENCES users (id) ON DELETE CASCADE,
+    session_id VARCHAR(256) NOT NULL UNIQUE);''')
+
     session.commit()
     session.close()
 
