@@ -4,12 +4,10 @@ from sqlalchemy.orm import Session
 from config import DB_URL
 
 
+# функция создания таблиц базы данных
 def main():
     engine = create_engine(DB_URL)
-    print(engine)
-
     session = Session(bind=engine.connect())
-    print(session)
 
     session.execute('''CREATE TABLE users (
     id SERIAL NOT NULL PRIMARY KEY,
@@ -58,7 +56,3 @@ def main():
 
     session.commit()
     session.close()
-
-
-if __name__ == '__main__':
-    main()

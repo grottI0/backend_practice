@@ -7,7 +7,6 @@ class SignUpForm(BaseModel):
     last_name: str
     email: str
     password: str
-    roles: str
 
 
 class SignInForm(BaseModel):
@@ -15,15 +14,9 @@ class SignInForm(BaseModel):
     password: str
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class TokenData(BaseModel):
-    id: int
+class ChangeRolesForm(BaseModel):
+    user_id: int
     roles: str
-    blocked: bool
 
 
 class DraftCreateForm(BaseModel):
