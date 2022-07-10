@@ -2,8 +2,8 @@ import os
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import ProgrammingError
 from dotenv import load_dotenv
-from psycopg2 import OperationalError
 
 load_dotenv()
 
@@ -20,7 +20,7 @@ def create_tables():
         password VARCHAR(256) NOT NULL,
         roles VARCHAR(256) NOT NULL,
         blocked BOOLEAN DEFAULT false);''')
-    except OperationalError:
+    except ProgrammingError:
         print('users already exists')
 
     try:
@@ -28,7 +28,7 @@ def create_tables():
         id SERIAL NOT NULL PRIMARY KEY,
         name VARCHAR(256) NOT NULL,
         created_by_id INTEGER REFERENCES users (id) ON DELETE CASCADE);''')
-    except OperationalError:
+    except ProgrammingError:
         print('sections already exists')
 
     try:
@@ -46,7 +46,7 @@ def create_tables():
         tags VARCHAR(256) NOT NULL,
         approved_at VARCHAR(256),
         section_id INTEGER REFERENCES sections (id) ON DELETE CASCADE);''')
-    except OperationalError:
+    except ProgrammingError:
         print('articles already exists')
 
     try:
@@ -55,7 +55,7 @@ def create_tables():
         user_id INTEGER REFERENCES users (id) ON DELETE CASCADE,
         article_id INTEGER REFERENCES articles (id) ON DELETE CASCADE,
         text TEXT NOT NULL);''')
-    except OperationalError:
+    except ProgrammingError:
         print('comments already exists')
 
     try:
@@ -64,7 +64,7 @@ def create_tables():
         user_id INTEGER REFERENCES users (id) ON DELETE CASCADE,
         article_id INTEGER REFERENCES articles (id) ON DELETE CASCADE,
         rating INTEGER NOT NULL);''')
-    except OperationalError:
+    except ProgrammingError:
         print('rating already exists')
 
     try:
@@ -72,7 +72,7 @@ def create_tables():
         id SERIAL NOT NULL PRIMARY KEY,
         user_id INTEGER REFERENCES users (id) ON DELETE CASCADE,
         session_id VARCHAR(256) NOT NULL UNIQUE);''')
-    except OperationalError:
+    except ProgrammingError:
         print('sessions already exists')
 
     session.commit()
