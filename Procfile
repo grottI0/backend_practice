@@ -1,1 +1,1 @@
-web: gunicorn backendgrotio.wsgi
+web: python3 main.py
