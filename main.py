@@ -10,9 +10,11 @@ from pydantic import conint
 
 from forms import SignUpForm, DraftCreateForm, DraftEditForm, ApprovedEditForm, RejectForm, SignInForm, ChangeRolesForm
 from database import connection, User, Article, Comment, Rating, Section, SessionTable as Session
+from create_tables import create_tables
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 app = FastAPI()
+create_tables()
 
 
 def verify_password(plain, hashed):

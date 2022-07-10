@@ -1,12 +1,15 @@
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+from dotenv import load_dotenv
 
-from config import DB_URL
+load_dotenv()
 
 
 # функция создания таблиц базы данных
-def main():
-    engine = create_engine(DB_URL)
+def create_tables():
+    engine = create_engine(os.environ['DB_URL'])
     session = Session(bind=engine.connect())
 
     session.execute('''CREATE TABLE users (

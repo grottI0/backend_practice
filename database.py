@@ -1,15 +1,18 @@
+import os
+
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Text, BOOLEAN
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.declarative import declarative_base
+from dotenv import load_dotenv
 
-from config import DB_URL
+load_dotenv()
 
 
 Base = declarative_base()
 
 
 def connection():
-    engine = create_engine(DB_URL)
+    engine = create_engine(os.environ['DB_URL'])
     session = Session(bind=engine.connect())
     return session
 
