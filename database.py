@@ -13,7 +13,7 @@ Base = declarative_base()
 
 def db_url():
     url = os.environ['DATABASE_URL'].split('://')
-    url[0] = url[0] + '+psycopg2://'
+    url[0] = url[0] + 'ql+psycopg2://'
     url = ''.join(url)
     return url
 
