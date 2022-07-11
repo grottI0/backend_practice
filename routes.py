@@ -91,7 +91,7 @@ def sign_in(body: SignInForm):
 
 @router.get('/auth_with_mailru')
 def auth_with_mailru():
-    body = {'client_id': str(os.environ['MAILRU_ID']),
+    body = {'client_id': int(os.environ['MAILRU_ID']),
             'client_secret': os.environ['MAILRU_SECRET_KEY'],
             'grant_type': 'authorization_code',
             'redirect_uri': 'https://backendgrotio.herokuapp.com/auth_with_mailru'}
