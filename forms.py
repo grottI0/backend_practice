@@ -7,6 +7,7 @@ class SignUpForm(BaseModel):
     last_name: str
     email: str
     password: str
+    admin: Optional[bool] = False
 
 
 class SignInForm(BaseModel):

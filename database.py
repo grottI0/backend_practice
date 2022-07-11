@@ -3,10 +3,6 @@ import os
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Text, BOOLEAN
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.declarative import declarative_base
-from dotenv import load_dotenv
-
-load_dotenv()
-
 
 Base = declarative_base()
 
