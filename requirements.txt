@@ -7,3 +7,4 @@ SQLAlchemy
 uvicorn
 gunicorn
 python-dotenv
+requests
