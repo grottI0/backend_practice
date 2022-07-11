@@ -91,7 +91,7 @@ def sign_in(body: SignInForm):
 
 @router.get('/auth_with_vk')
 def auth_with_vk():
-    client_id = os.environ['VK_KEY']
+    client_id = os.environ['VK_SERVICE_KEY']
     response = requests.get(
         url=f'http://oauth.vk.com/authorize?client_id={client_id}&redirect_uri=mysite.com/vklogin&response_type=code'
     )
