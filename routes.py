@@ -89,13 +89,17 @@ def sign_in(body: SignInForm):
     return response
 
 
-@router.get('/auth_with_vk')
-def auth_with_vk():
-    client_id = os.environ['VK_SERVICE_KEY']
-    response = requests.get(
-        url=f'http://oauth.vk.com/authorize?client_id={client_id}&redirect_uri=mysite.com/vklogin&response_type=code'
-    )
-    return response.json()
+@router.get('/auth_with_mailru')
+def auth_with_mailru():
+    body = {'client_id': os.environ['MAILRU_ID'],
+            'client_secret': os.environ['MAILRU_SECRET_KEY'],
+            'grant_type': 'authorization_code',
+            'redirect_uri': 'https://backendgrotio.herokuapp.com/auth_with_mailru'}
+    res = requests.post(url='https://connect.mail.ru/oauth/token', json=body).json()
+    print(res)
+    response = requests.get(url=f'http://www.appsmail.ru/platform/api?method=users.getInfo&secure=1& \
+    app_id={os.environ["MAILRU_ID"]}&session_key={res["access_token"]}').json()
+    print(response)
 
 
 # Удаление текущей сессии пользователя из базы данных и куки
