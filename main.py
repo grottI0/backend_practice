@@ -30,8 +30,9 @@ def get_current_user(session_id, db):
     user = db.query(User).join(Session).filter(and_(Session.session_id == session_id,
                                                     Session.user_id == User.id)).one_or_none()
     if user is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-
+    db.close()
     return user
 
 
@@ -44,6 +45,7 @@ def registration(body: SignUpForm, db=Depends(connection)):
     email = body.email.lower()
     password = body.password
     if first_name == '' or email == '' or password == '' or last_name == '':
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     if body.admin:
@@ -53,6 +55,7 @@ def registration(body: SignUpForm, db=Depends(connection)):
 
     user = db.query(User.id).filter(User.email == body.email).one_or_none()
     if user:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
     else:
         user = User(full_name=full_name,
@@ -61,7 +64,7 @@ def registration(body: SignUpForm, db=Depends(connection)):
                     roles=roles)
         db.add(user)
         db.commit()
-
+        db.close()
         return {'message': 'user created'}
 
 
@@ -70,9 +73,11 @@ def registration(body: SignUpForm, db=Depends(connection)):
 def sign_in(body: SignInForm, db=Depends(connection)):
     user = db.query(User).filter(User.email == body.email).one_or_none()
     if user is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
     if not verify_password(body.password, user.password):
+        db.close()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
     content = {'message': 'session created'}
@@ -84,7 +89,7 @@ def sign_in(body: SignInForm, db=Depends(connection)):
                       session_id=session_id)
     db.add(session)
     db.commit()
-
+    db.close()
     return response
 
 
@@ -99,7 +104,7 @@ def delete_session(session_id: Union[str, None] = Cookie(default=None), db=Depen
 
     db.query(Session).filter(Session.session_id == session_id).delete()
     db.commit()
-
+    db.close()
     return response
 
 
@@ -114,7 +119,7 @@ def delete_all_sessions(session_id: Union[str, None] = Cookie(default=None), db=
 
     db.query(Session).filter(Session.user_id == current_user.id).delete()
     db.commit()
-
+    db.close()
     return response
 
 
@@ -129,7 +134,7 @@ def delete_other_sessions(session_id: Union[str, None] = Cookie(default=None), d
     db.query(Session).filter(and_(Session.user_id == current_user.id,
                                   Session.session_id != session_id)).delete()
     db.commit()
-
+    db.close()
     return response
 
 
@@ -139,11 +144,13 @@ def get_any_user(user_id: int, session_id: Union[str, None] = Cookie(default=Non
     current_user = get_current_user(session_id, db)
 
     if current_user.blocked and user_id != current_user.id:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     user = db.query(User).filter(User.id == user_id).one_or_none()
 
     if user is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     articles = db.query(Article.authors, Article.title).all()
@@ -155,6 +162,7 @@ def get_any_user(user_id: int, session_id: Union[str, None] = Cookie(default=Non
             count += 1
             titles.update({count: i.title})
 
+    db.close()
     return {'id': user.id,
             'full_name': user.full_name,
             'email': user.email,
@@ -172,10 +180,12 @@ def blocking_user(user_id: int, block_or_unblock: str, session_id: Union[str, No
     current_user = get_current_user(session_id, db)
 
     if 'moderator' not in current_user.roles or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     user = db.query(User).filter(and_(User.id == user_id, User.id != current_user.id)).one_or_none()
     if user is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     if block_or_unblock == 'block':
@@ -203,8 +213,10 @@ def blocking_user(user_id: int, block_or_unblock: str, session_id: Union[str, No
     elif block_or_unblock == 'unblock':
         user.blocked = False
     else:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
     db.commit()
+    db.close()
 
     return {'message': 'ok'}
 
@@ -220,16 +232,19 @@ def change_roles(body: ChangeRolesForm, session_id: Union[str, None] = Cookie(de
             'writer' not in current_user.roles) or \
             current_user.blocked or \
             current_user.id == body.user_id:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     user = db.query(User).filter(User.id == body.user_id).one_or_none()
     if user is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     if 'reader' not in body.roles and \
             'writer' not in body.roles and \
             'moderator' not in body.roles and \
             'admin' not in body.roles:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     if 'admin' in body.roles:
@@ -237,7 +252,7 @@ def change_roles(body: ChangeRolesForm, session_id: Union[str, None] = Cookie(de
 
     user.roles = body.roles
     db.commit()
-
+    db.close()
     return {'message': 'roles changed'}
 
 
@@ -249,22 +264,29 @@ def create_article(body: DraftCreateForm, session_id: Union[str, None] = Cookie(
     creator_id = str(current_user.id)
 
     if 'writer' not in current_user.roles or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
-    other_authors_ids = body.other_authors.split()
+    if body.other_authors != '':
+        other_authors_ids = body.other_authors.split()
 
-    for i in range(len(other_authors_ids)):
-        try:
-            user = db.query(User).filter(User.id == other_authors_ids[i]).one_or_none()
-        except DataError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Incorrect input')
+        for i in range(len(other_authors_ids)):
+            try:
+                user = db.query(User).filter(User.id == other_authors_ids[i]).one_or_none()
+            except DataError:
+                db.close()
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Incorrect authors input')
 
-        if user is None or user.id == current_user.id or 'writer' not in user.roles:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Incorrect roles input')
+            if user is None or user.id == current_user.id or 'writer' not in user.roles:
+                db.close()
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Incorrect roles input')
+    else:
+        other_authors_ids = []
 
     authors = f'{creator_id} {" ".join(other_authors_ids)}'
 
-    if not body.title or not body.text or body.tags:
+    if not body.title or not body.text or not body.tags:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Incorrect input')
     else:
         try:
@@ -275,11 +297,13 @@ def create_article(body: DraftCreateForm, session_id: Union[str, None] = Cookie(
                               authors=authors,
                               status='draft')
         except IntegrityError:
+            db.close()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Article already exists')
         else:
             db.add(article)
             db.commit()
 
+    db.close()
     return {'message': 'draft created',
             'title': body.title}
 
@@ -295,16 +319,19 @@ def get_disapproved(title: str, session_id: Union[str, None] = Cookie(default=No
                                                 Article.status == 'rejected'))).one_or_none()
 
     if article is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     elif (current_user_id not in article.authors.split() and current_user_id not in article.editors.split()) \
             or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     if article.status == 'rejected':
         article.status = 'draft'
         db.commit()
 
+    db.close()
     return {'text': article.text,
             'tags': article.tags}
 
@@ -316,21 +343,25 @@ def edit_draft(body: DraftEditForm, session_id: Union[str, None] = Cookie(defaul
     current_user_id = str(current_user.id)
 
     if not body.title or not body.text or not body.tags:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     article = db.query(Article).filter(and_(Article.title == body.title,
                                             Article.status == 'draft')).one_or_none()
 
     if article is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     elif (current_user_id not in article.authors.split() and current_user_id not in article.editors.split()) \
             or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     article.text = body.text
     article.tags = body.tags
     db.commit()
+    db.close()
 
     return {'message': 'draft edited'}
 
@@ -342,14 +373,18 @@ def publish_article(title: str, session_id: Union[str, None] = Cookie(default=No
     current_user_id = str(current_user.id)
 
     if current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     article = db.query(Article).filter(and_(Article.creator == current_user_id, Article.title == title)).one_or_none()
     if article is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)\
 
     article.status = 'published'
     db.commit()
+    db.close()
+
     return {'message': 'article published'}
 
 
@@ -359,6 +394,7 @@ def list_to_approve(session_id: Union[str, None] = Cookie(default=None), db=Depe
     current_user = get_current_user(session_id, db)
 
     if 'moderator' not in current_user.roles or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     articles = db.query(Article).filter(Article.status == 'published').all()
@@ -368,6 +404,8 @@ def list_to_approve(session_id: Union[str, None] = Cookie(default=None), db=Depe
                                    'authors': i.authors,
                                    'text': i.text,
                                    'tags': i.tags}})
+
+    db.close()
     return response
 
 
@@ -380,13 +418,16 @@ def approve_article(body: ApprovedEditForm, session_id: Union[str, None] = Cooki
     current_user = get_current_user(session_id, db)
 
     if 'moderator' not in current_user.roles or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     if body.title == '':
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     article = db.query(Article).filter(and_(Article.title == body.title,
                                             Article.status == 'published')).one_or_none()
     if article is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     if body.edited_text != '':
@@ -397,19 +438,24 @@ def approve_article(body: ApprovedEditForm, session_id: Union[str, None] = Cooki
         try:
             user = db.query(User).filter(User.id == i).one_or_none()
         except DataError:
+            db.close()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
         if user is None:
+            db.close()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
         elif user.id == current_user.id:
+            db.close()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
         elif article.editors is not None:
             if str(user.id) in article.editors:
+                db.close()
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
         elif 'moderator' not in user.roles and 'writer' not in user.roles:
+            db.close()
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     article.editors = f'{str(current_user.id)} {" ".join(other_editors_ids)}'
@@ -418,7 +464,7 @@ def approve_article(body: ApprovedEditForm, session_id: Union[str, None] = Cooki
     article.readers = article.rating = article.number_of_ratings = 0
     article.approved_at = datetime.utcnow()
     db.commit()
-
+    db.close()
     return {'message': 'article is approved'}
 
 
@@ -428,11 +474,13 @@ def reject_article(body: RejectForm, session_id: Union[str, None] = Cookie(defau
     current_user = get_current_user(session_id, db)
 
     if 'moderator' not in current_user.roles or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     article = db.query(Article).filter(and_(Article.title == body.title,
                                             Article.status == 'published')).one_or_none()
     if article is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     moderators_email = db.query(User.email).filter(User.id == current_user.id).one_or_none()
@@ -440,7 +488,7 @@ def reject_article(body: RejectForm, session_id: Union[str, None] = Cookie(defau
     article.status = 'rejected'
     article.text += message
     db.commit()
-
+    db.close()
     return {'message': 'article is rejected'}
 
 
@@ -451,18 +499,21 @@ def to_draft(title: str, session_id: Union[str, None] = Cookie(default=None), db
 
     article = db.query(Article).filter(Article.title == title).one_or_none()
     if article is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     if str(current_user.id) not in article.authors.split() or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     if article.status == 'approved' or article.status == 'rejected':
         article.status = 'draft'
         article.approved_at = None
         db.commit()
-
+        db.close()
         return {'message': 'status changed'}
     else:
+        db.close()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
 
@@ -472,12 +523,14 @@ def create_comment(title: str, text: str, session_id: Union[str, None] = Cookie(
     current_user = get_current_user(session_id, db)
 
     if 'reader' not in current_user.roles or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     article = db.query(Article).filter(and_(Article.title == title,
                                             Article.status == 'approved')).one_or_none()
 
     if article is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     comment = Comment(text=text,
@@ -485,7 +538,7 @@ def create_comment(title: str, text: str, session_id: Union[str, None] = Cookie(
                       user_id=current_user.id)
     db.add(comment)
     db.commit()
-
+    db.close()
     return {'message': 'comment created'}
 
 
@@ -494,19 +547,22 @@ def create_comment(title: str, text: str, session_id: Union[str, None] = Cookie(
 def delete_comment(comment_id: int, session_id: Union[str, None] = Cookie(default=None), db=Depends(connection)):
     current_user = get_current_user(session_id, db)
     if current_user.blocked or 'moderator' not in current_user.roles:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     comment = db.query(Comment).filter(Comment.id == comment_id).one_or_none()
     if comment is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     author_id = comment.user_id
 
     if author_id != current_user.id:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     db.query(Comment).filter(Comment.id == comment_id).delete()
     db.commit()
-
+    db.close()
     return {'message': 'comment deleted'}
 
 
@@ -516,10 +572,12 @@ def get_article(title: str, session_id: Union[str, None] = Cookie(default=None),
     current_user = get_current_user(session_id, db)
 
     if current_user.blocked or 'reader' not in current_user.roles:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     article = db.query(Article).filter(Article.title == title).one_or_none()
     if article is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     article.readers += 1
     db.commit()
@@ -530,6 +588,7 @@ def get_article(title: str, session_id: Union[str, None] = Cookie(default=None),
                              User.full_name).join(User).filter(Comment.article_id == article.id).all()
 
     if comments_list is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     authors = ''
@@ -546,12 +605,12 @@ def get_article(title: str, session_id: Union[str, None] = Cookie(default=None),
                 'date': article.approved_at,
                 'comments': {}}
 
-    comments = {}
+    comments = dict()
     for i in comments_list:
         comment = {i[0]: {'text': i[1], 'user_id': i[2], 'full_name': i[3]}}
         comments.update(comment)
     response.update({'comments': comments})
-
+    db.close()
     return response
 
 
@@ -564,6 +623,7 @@ def search_articles(rating: str = None, number_of_readers: str = None, title: st
     current_user = get_current_user(session_id, db)
 
     if 'reader' not in current_user.roles or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     if rating:
@@ -611,19 +671,22 @@ def search_articles(rating: str = None, number_of_readers: str = None, title: st
             articles = db.query(Article).filter(and_(Article.section_id == section.id,
                                                      Article.status == 'approved')).all()
         except AttributeError:
+            db.close()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
     else:
         articles = db.query(Article).filter(Article.status == 'approved').all()
 
-    response = {}
+    response = dict()
     if articles is None:
+        db.close()
         return {}
     elif not articles or articles[0] is None:
+        db.close()
         return {}
 
     for i in articles:
         response.update({i.id: i.title})
-
+    db.close()
     return response
 
 
@@ -632,13 +695,15 @@ def search_articles(rating: str = None, number_of_readers: str = None, title: st
 def get_new_articles(session_id: Union[str, None] = Cookie(default=None), db=Depends(connection)):
     current_user = get_current_user(session_id, db)
     if current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     articles = db.query(Article).filter(Article.status == 'approved').order_by(Article.approved_at.desc()).all()
     if articles is None:
+        db.close()
         return {}
 
-    response = {}
+    response = dict()
     today = datetime.utcnow()
     for i in articles:
         delta = today - datetime.strptime(i.approved_at[:10], '%Y-%m-%d')
@@ -646,6 +711,7 @@ def get_new_articles(session_id: Union[str, None] = Cookie(default=None), db=Dep
             response.update({i.approved_at: {'id': i.id, 'title': i.title, 'tags': i.tags}})
         else:
             break
+    db.close()
     return response
 
 
@@ -654,15 +720,18 @@ def rate_article(title: str, rating: conint(gt=0, lt=6),
                  session_id: Union[str, None] = Cookie(default=None), db=Depends(connection)):
     current_user = get_current_user(session_id, db)
     if 'reader' not in current_user.roles or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     article = db.query(Article).filter(Article.title == title).one_or_none()
     if article is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     existed_rating = db.query(Rating).filter(and_(Rating.user_id == current_user.id,
                                                   Rating.article_id == article.id)).one_or_none()
     if existed_rating is not None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     article.rating = int((article.rating * article.number_of_ratings + rating) / (article.number_of_ratings + 1))
@@ -673,7 +742,7 @@ def rate_article(title: str, rating: conint(gt=0, lt=6),
                  rating=rating)
     db.add(row)
     db.commit()
-
+    db.close()
     return {'message': 'rating created'}
 
 
@@ -683,17 +752,19 @@ def add_to_section(article_title: str, section_name: str, session_id: Union[str,
     current_user = get_current_user(session_id, db)
 
     if 'moderator' not in current_user.roles or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     article = db.query(Article).filter(Article.title == article_title).one_or_none()
     section = db.query(Section).filter(Section.name == section_name).one_or_none()
 
     if article is None or section is None:
+        db.close()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     article.section_id = section.id
     db.commit()
-
+    db.close()
     return {'message': 'added to section'}
 
 
@@ -703,6 +774,7 @@ def create_section(name: str, session_id: Union[str, None] = Cookie(default=None
     current_user = get_current_user(session_id, db)
 
     if 'moderator' not in current_user.roles or current_user.blocked:
+        db.close()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     existed_section = db.query(Section).filter(Section.name == name)
@@ -712,7 +784,8 @@ def create_section(name: str, session_id: Union[str, None] = Cookie(default=None
 
         db.add(section)
         db.commit()
-
+        db.close()
         return {'message': 'section created'}
     else:
+        db.close()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
