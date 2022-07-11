@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from typing import Union
 from uuid import uuid4
@@ -8,6 +9,7 @@ from passlib.context import CryptContext
 from sqlalchemy import and_, or_
 from sqlalchemy.exc import DataError, IntegrityError
 from pydantic import conint
+import requests
 
 from forms import SignUpForm, DraftCreateForm, DraftEditForm, ApprovedEditForm, RejectForm, SignInForm, ChangeRolesForm
 from database import connection, User, Article, Comment, Rating, Section, SessionTable as Session
@@ -85,6 +87,15 @@ def sign_in(body: SignInForm):
     db_session.commit()
 
     return response
+
+
+@router.get('/auth_with_vk')
+def auth_with_vk():
+    client_id = os.environ['VK_KEY']
+    response = requests.get(
+        url=f'http://oauth.vk.com/authorize?client_id={client_id}&redirect_uri=mysite.com/vklogin&response_type=code'
+    )
+    return response.json()
 
 
 # Удаление текущей сессии пользователя из базы данных и куки
