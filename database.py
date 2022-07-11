@@ -11,8 +11,18 @@ load_dotenv()
 Base = declarative_base()
 
 
+def db_url():
+    url = os.environ['DATABASE_URL'].split('://')
+    url[0] = url[0] + '+psycopg2://'
+    url = ''.join(url)
+    return url
+
+
+DB_URL = db_url()
+
+
 def connection():
-    engine = create_engine(os.environ['DB_URL'])
+    engine = create_engine(DB_URL)
     session = Session(bind=engine.connect())
     return session
 

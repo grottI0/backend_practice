@@ -1,16 +1,13 @@
-import os
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import ProgrammingError
-from dotenv import load_dotenv
 
-load_dotenv()
+from database import DB_URL
 
 
 # функция создания таблиц базы данных
 def create_tables():
-    engine = create_engine(os.environ['DB_URL'])
+    engine = create_engine(DB_URL)
     try:
         session = Session(bind=engine.connect())
         session.execute('''CREATE TABLE users (
