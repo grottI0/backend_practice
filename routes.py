@@ -91,12 +91,14 @@ def sign_in(body: SignInForm):
 
 @router.get('/auth_with_mailru')
 def auth_with_mailru():
+    r = requests.get(url=f'https://connect.mail.ru/oauth/authorize?client_id={os.environ["MAILRU_ID"]}& \
+                           response_type=code&redirect_uri=https://backendgrotio.herokuapp.com/auth_with_mailru')
     body = {'client_id': int(os.environ['MAILRU_ID']),
             'client_secret': os.environ['MAILRU_SECRET_KEY'],
             'grant_type': 'authorization_code',
             'redirect_uri': 'https://backendgrotio.herokuapp.com/auth_with_mailru'}
     print(body)
-    res = requests.post(url='https://connect.mail.ru/oauth/token', data=body).json()
+    res = requests.post(url='https://connect.mail.ru/oauth/token', json=body).json()
     print('res =', res)
     response = requests.get(url=f'http://www.appsmail.ru/platform/api?method=users.getInfo&secure=1& \
     app_id={os.environ["MAILRU_ID"]}&session_key={res["access_token"]}').json()
