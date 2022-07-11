@@ -14,14 +14,6 @@ def db_url():
     return url
 
 
-def kill_connections():
-    session = connection()
-    session.execute('''SELECT pg_terminate_backend(pg_stat_activity.pid)
-                        FROM pg_stat_activity
-                        WHERE pg_stat_activity.datname = 'database_name'
-                        AND pid <> pg_backend_pid();''')
-
-
 DB_URL = db_url()
 
 
