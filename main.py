@@ -477,7 +477,7 @@ def create_comment(title: str, text: str, session_id: Union[str, None] = Cookie(
     article = db.query(Article).filter(and_(Article.title == title,
                                             Article.status == 'approved')).one_or_none()
 
-    if article is None or text == '':
+    if article is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     comment = Comment(text=text,
@@ -493,13 +493,15 @@ def create_comment(title: str, text: str, session_id: Union[str, None] = Cookie(
 @app.get('/article/delete_comment')
 def delete_comment(comment_id: int, session_id: Union[str, None] = Cookie(default=None), db=Depends(connection)):
     current_user = get_current_user(session_id, db)
+    if current_user.blocked or 'moderator' not in current_user.roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     comment = db.query(Comment).filter(Comment.id == comment_id).one_or_none()
     if comment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     author_id = comment.user_id
 
-    if ('moderator' not in current_user.roles and author_id != current_user.id) or current_user.blocked:
+    if author_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     db.query(Comment).filter(Comment.id == comment_id).delete()
@@ -508,6 +510,7 @@ def delete_comment(comment_id: int, session_id: Union[str, None] = Cookie(defaul
     return {'message': 'comment deleted'}
 
 
+# поиск статей
 @app.get('/article')
 def get_article(title: str, session_id: Union[str, None] = Cookie(default=None), db=Depends(connection)):
     current_user = get_current_user(session_id, db)
