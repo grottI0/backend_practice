@@ -98,7 +98,6 @@ def auth_with_mailru():
     r = requests.get(url=f'https://connect.mail.ru/oauth/authorize?client_id={client_id}& \
                            response_type=code&redirect_uri={redirect_uri}')
     print('r =', r)
-    return r
 '''body = {'client_id': int(os.environ['MAILRU_ID']),
             'client_secret': os.environ['MAILRU_SECRET_KEY'],
             'grant_type': 'authorization_code',
