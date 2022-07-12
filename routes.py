@@ -95,28 +95,19 @@ def auth_with_mailru():
     client_id = os.environ['MAILRU_ID']
     redirect_uri = 'https://backendgrotio.herokuapp.com/mmlogin'
 
-    r = requests.get(url=f'https://connect.mail.ru/oauth/authorize?client_id={client_id}& \
-                           response_type=code&redirect_uri={redirect_uri}')
+    r = requests.get(url=f'https://connect.mail.ru/oauth/authorize?client_id={client_id}&\
+                           response_type=code&redirect_uri={redirect_uri}', allow_redirects=True)
     # post = requests.get(url=redirect_uri).json()
     #print('r =', r)
     #print('post =', post)
     return {'message': 'ok'}
-'''body = {'client_id': int(os.environ['MAILRU_ID']),
-            'client_secret': os.environ['MAILRU_SECRET_KEY'],
-            'grant_type': 'authorization_code',
-            'redirect_uri': 'https://backendgrotio.herokuapp.com/auth_with_mailru'}
-    print(body)
-    res = requests.post(url='https://connect.mail.ru/oauth/token', json=body).json()
-    print('res =', res)
-    response = requests.get(url=f'http://www.appsmail.ru/platform/api?method=users.getInfo&secure=1& \
-    app_id={os.environ["MAILRU_ID"]}&session_key={res["access_token"]}').json()
-    print('response', response)'''
 
 
 @router.get('/mmlogin')
 def mlogin(request: Request):
-    code = request.query_params['code']
-    if not code:
+    try:
+        code = request.query_params['code']
+    except KeyError:
         return {'m': 'no code'}
     client_id = int(os.environ['MAILRU_ID'])
     secret_key = os.environ['MAILRU_SECRET_KEY']
