@@ -4,7 +4,7 @@ from typing import Union
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status, Cookie
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from passlib.context import CryptContext
 from sqlalchemy import and_, or_
 from sqlalchemy.exc import DataError, IntegrityError
@@ -92,12 +92,13 @@ def sign_in(body: SignInForm):
 @router.get('/auth_with_mailru')
 def auth_with_mailru():
     client_id = os.environ['MAILRU_ID']
-    redirect_uri = 'https://backendgrotio.herokuapp.com/auth_with_mailru'
+    redirect_uri = 'https://backendgrotio.herokuapp.com/mmlogin'
 
     r = requests.get(url=f'https://connect.mail.ru/oauth/authorize?client_id={client_id}& \
                            response_type=code&redirect_uri={redirect_uri}').json()
     print('r =', r)
-    body = {'client_id': int(os.environ['MAILRU_ID']),
+    return r
+'''body = {'client_id': int(os.environ['MAILRU_ID']),
             'client_secret': os.environ['MAILRU_SECRET_KEY'],
             'grant_type': 'authorization_code',
             'redirect_uri': 'https://backendgrotio.herokuapp.com/auth_with_mailru'}
@@ -106,7 +107,12 @@ def auth_with_mailru():
     print('res =', res)
     response = requests.get(url=f'http://www.appsmail.ru/platform/api?method=users.getInfo&secure=1& \
     app_id={os.environ["MAILRU_ID"]}&session_key={res["access_token"]}').json()
-    print('response', response)
+    print('response', response)'''
+
+
+@router.get('/mmlogin')
+def mmlogin():
+    pass
 
 
 # Удаление текущей сессии пользователя из базы данных и куки
