@@ -1,4 +1,5 @@
 import os
+import hashlib
 from datetime import datetime
 from typing import Union
 from uuid import uuid4
@@ -111,8 +112,23 @@ def auth_with_mailru():
 
 
 @router.get('/mmlogin')
-def mmlogin():
-    pass
+def mlogin(code: str):
+    client_id = int(os.environ['MAILRU_ID'])
+    secret_key = os.environ['MAILRU_SECRET_KEY']
+    body = {'client_id': client_id,
+            'client_secret': secret_key,
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': 'https://backendgrotio.herokuapp.com/auth_with_mailru'}
+    response = requests.post(url='https://connect.mail.ru/oauth/token', json=body).json()
+    access_token = response['access_token']
+    params = f'method=users.getInfosecure=1app_id={client_id}access_token={access_token}'
+    string = params + secret_key
+    sign = hashlib.md5(string.encode())
+    user = requests.get(url=f'http://www.appsmail.ru/platform/api?method=users.getInfo&secure=1& \
+    app_id={client_id}&session_key={access_token}&sig={sign}').json()
+    print('user = ', user)
+
 
 
 # Удаление текущей сессии пользователя из базы данных и куки
