@@ -91,9 +91,12 @@ def sign_in(body: SignInForm):
 
 @router.get('/auth_with_mailru')
 def auth_with_mailru():
-    r = requests.get(url=f'https://connect.mail.ru/oauth/authorize?client_id={os.environ["MAILRU_ID"]}& \
-                           response_type=code&redirect_uri=https://backendgrotio.herokuapp.com/auth_with_mailru')
-    print('r', r)
+    client_id = os.environ['MAILRU_ID']
+    redirect_uri = 'https://backendgrotio.herokuapp.com/auth_with_mailru'
+
+    r = requests.get(url=f'https://connect.mail.ru/oauth/authorize?client_id={client_id}& \
+                           response_type=code&redirect_uri={redirect_uri}').json()
+    print('r =', r)
     body = {'client_id': int(os.environ['MAILRU_ID']),
             'client_secret': os.environ['MAILRU_SECRET_KEY'],
             'grant_type': 'authorization_code',
