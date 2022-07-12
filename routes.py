@@ -95,7 +95,7 @@ def auth_with_mailru():
     redirect_uri = 'https://backendgrotio.herokuapp.com/mmlogin'
 
     r = requests.get(url=f'https://connect.mail.ru/oauth/authorize?client_id={client_id}& \
-                           response_type=code&redirect_uri={redirect_uri}').json()
+                           response_type=code&redirect_uri={redirect_uri}')
     print('r =', r)
     return r
 '''body = {'client_id': int(os.environ['MAILRU_ID']),
