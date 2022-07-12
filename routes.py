@@ -97,7 +97,10 @@ def auth_with_mailru():
 
     r = requests.get(url=f'https://connect.mail.ru/oauth/authorize?client_id={client_id}& \
                            response_type=code&redirect_uri={redirect_uri}')
-    print('r =', r)
+    # post = requests.get(url=redirect_uri).json()
+    #print('r =', r)
+    #print('post =', post)
+    return {'message': 'ok'}
 '''body = {'client_id': int(os.environ['MAILRU_ID']),
             'client_secret': os.environ['MAILRU_SECRET_KEY'],
             'grant_type': 'authorization_code',
@@ -113,13 +116,15 @@ def auth_with_mailru():
 @router.get('/mmlogin')
 def mlogin(request: Request):
     code = request.query_params['code']
+    if not code:
+        return {'m': 'no code'}
     client_id = int(os.environ['MAILRU_ID'])
     secret_key = os.environ['MAILRU_SECRET_KEY']
     body = {'client_id': client_id,
             'client_secret': secret_key,
             'grant_type': 'authorization_code',
             'code': code,
-            'redirect_uri': 'https://backendgrotio.herokuapp.com/auth_with_mailru'}
+            'redirect_uri': 'https://backendgrotio.herokuapp.com/mmlogin'}
     response = requests.post(url='https://connect.mail.ru/oauth/token', json=body).json()
     access_token = response['access_token']
     params = f'method=users.getInfosecure=1app_id={client_id}access_token={access_token}'
