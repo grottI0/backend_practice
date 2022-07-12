@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Union
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, status, Cookie
+from fastapi import APIRouter, HTTPException, status, Cookie, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from passlib.context import CryptContext
 from sqlalchemy import and_, or_
@@ -111,7 +111,8 @@ def auth_with_mailru():
 
 
 @router.get('/mmlogin')
-def mlogin(code: str):
+def mlogin(request: Request):
+    code = request.query_params['code']
     client_id = int(os.environ['MAILRU_ID'])
     secret_key = os.environ['MAILRU_SECRET_KEY']
     body = {'client_id': client_id,
@@ -127,7 +128,6 @@ def mlogin(code: str):
     user = requests.get(url=f'http://www.appsmail.ru/platform/api?method=users.getInfo&secure=1& \
     app_id={client_id}&session_key={access_token}&sig={sign}').json()
     print('user = ', user)
-
 
 
 # Удаление текущей сессии пользователя из базы данных и куки
