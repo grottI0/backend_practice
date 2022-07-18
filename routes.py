@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status, Cookie, Request
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from passlib.context import CryptContext
 from sqlalchemy import and_, or_
 from sqlalchemy.exc import DataError, IntegrityError
@@ -19,6 +20,7 @@ from database import connection, User, Article, Comment, Rating, Section, Sessio
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 db_session = connection()
+templates = Jinja2Templates(directory="templates")
 
 
 def verify_password(plain, hashed):
@@ -95,11 +97,11 @@ def sign_in(body: SignInForm):
 # сервисный ключ доступа 8d8a7ce98d8a7ce98d8a7ce9eb8df7099988d8a8d8a7ce9ef5fc73adc586004c6030c73
 def auth_with_vk():
     client_id = os.environ['VK_ID']
-    response = RedirectResponse(
+    '''response = RedirectResponse(
         url=f'http://oauth.vk.com/authorize?client_id={client_id}&redirect_uri=backendgrotio.herokuapp.com/vklogin'
-            f'&response_type=code '
-    )
-    return {'message': 'ok'}
+            f'&response_type=code'
+    )'''
+    return templates.TemplateResponse("receiver.html", {'client_id': client_id})
 
 
 @router.get('/vklogin')
