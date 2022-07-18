@@ -11,7 +11,6 @@ from passlib.context import CryptContext
 from sqlalchemy import and_, or_
 from sqlalchemy.exc import DataError, IntegrityError
 from pydantic import conint
-import requests
 
 from forms import SignUpForm, DraftCreateForm, DraftEditForm, ApprovedEditForm, RejectForm, SignInForm, ChangeRolesForm
 from database import connection, User, Article, Comment, Rating, Section, SessionTable as Session
