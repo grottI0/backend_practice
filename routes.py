@@ -90,40 +90,22 @@ def sign_in(body: SignInForm):
     return response
 
 
-@router.get('/auth_with_mailru')
-def auth_with_mailru():
-    client_id = os.environ['MAILRU_ID']
-    redirect_uri = 'https://backendgrotio.herokuapp.com/mmlogin'
-
-    r = requests.get(url=f'https://connect.mail.ru/oauth/authorize?client_id={client_id}&\
-                           response_type=code&redirect_uri={redirect_uri}', allow_redirects=True)
-    # post = requests.get(url=redirect_uri).json()
-    #print('r =', r)
-    #print('post =', post)
+@router.get('/auth_with_vk')  # Защищенный ключ XUwB41zVrWajTlWauSkM
+# id 8222064
+# сервисный ключ доступа 8d8a7ce98d8a7ce98d8a7ce9eb8df7099988d8a8d8a7ce9ef5fc73adc586004c6030c73
+def auth_with_vk():
+    client_id = os.environ['VK_ID']
+    response = RedirectResponse(
+        url=f'http://oauth.vk.com/authorize?client_id={client_id}&redirect_uri=backendgrotio.herokuapp.com/vklogin'
+            f'&response_type=code '
+    )
     return {'message': 'ok'}
 
 
-@router.get('/mmlogin')
-def mlogin(request: Request):
-    try:
-        code = request.query_params['code']
-    except KeyError:
-        return {'m': 'no code'}
-    client_id = int(os.environ['MAILRU_ID'])
-    secret_key = os.environ['MAILRU_SECRET_KEY']
-    body = {'client_id': client_id,
-            'client_secret': secret_key,
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': 'https://backendgrotio.herokuapp.com/mmlogin'}
-    response = requests.post(url='https://connect.mail.ru/oauth/token', json=body).json()
-    access_token = response['access_token']
-    params = f'method=users.getInfosecure=1app_id={client_id}access_token={access_token}'
-    string = params + secret_key
-    sign = hashlib.md5(string.encode())
-    user = requests.get(url=f'http://www.appsmail.ru/platform/api?method=users.getInfo&secure=1& \
-    app_id={client_id}&session_key={access_token}&sig={sign}').json()
-    print('user = ', user)
+@router.get('/vklogin')
+def vklogin(request: Request):
+    params = request.query_params
+    print(params)
 
 
 # Удаление текущей сессии пользователя из базы данных и куки
