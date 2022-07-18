@@ -94,13 +94,13 @@ def sign_in(body: SignInForm):
 @router.get('/auth_with_vk')  # Защищенный ключ XUwB41zVrWajTlWauSkM
 # id 8222064
 # сервисный ключ доступа 8d8a7ce98d8a7ce98d8a7ce9eb8df7099988d8a8d8a7ce9ef5fc73adc586004c6030c73
-def auth_with_vk():
+def auth_with_vk(request: Request):
     client_id = os.environ['VK_ID']
     '''response = RedirectResponse(
         url=f'http://oauth.vk.com/authorize?client_id={client_id}&redirect_uri=backendgrotio.herokuapp.com/vklogin'
             f'&response_type=code'
     )'''
-    return templates.TemplateResponse("receiver.html", {'client_id': client_id})
+    return templates.TemplateResponse("receiver.html", {'request': request, 'client_id': client_id})
 
 
 @router.get('/vklogin')
