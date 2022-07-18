@@ -7,4 +7,4 @@ SQLAlchemy
 uvicorn
 gunicorn
 python-dotenv
-requests
+jinja2
