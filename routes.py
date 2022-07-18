@@ -100,11 +100,9 @@ def auth_with_vk(request: Request):
 
 @router.get('/vklogin')
 def vklogin(code, request: Request):
-    params = str(request.query_params)
-    if 'code' in params:
-        params = params.split('=')
-        code = params[1]
-    else:
+    print(str(request.query_params))
+    print(code)
+    if not code:
         return {'message': 'failed'}
     client_id = os.environ['VK_ID']
     secret_key = os.environ['VK_SECRET_KEY']
