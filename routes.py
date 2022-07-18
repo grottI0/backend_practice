@@ -11,6 +11,7 @@ from passlib.context import CryptContext
 from sqlalchemy import and_, or_
 from sqlalchemy.exc import DataError, IntegrityError
 from pydantic import conint
+import requests
 
 from forms import SignUpForm, DraftCreateForm, DraftEditForm, ApprovedEditForm, RejectForm, SignInForm, ChangeRolesForm
 from database import connection, User, Article, Comment, Rating, Section, SessionTable as Session
@@ -98,15 +99,21 @@ def auth_with_vk(request: Request):
 
 
 @router.get('/vklogin')
-def vklogin(request: Request):
+def vklogin(code, request: Request):
     params = str(request.query_params)
     if 'code' in params:
         params = params.split('=')
         code = params[1]
     else:
         return {'message': 'failed'}
-
-    print()
+    client_id = os.environ['VK_ID']
+    secret_key = os.environ['VK_SECRET_KEY']
+    response = requests.get(
+        url=f'https://oauth.vk.com/access_token?client_id={client_id}&client_secret={secret_key}&code={code})')
+    if response.status_code != 200:
+        return {'message': 'failed'}
+    response = response.json()
+    print(response)
 
 
 # Удаление текущей сессии пользователя из базы данных и куки
