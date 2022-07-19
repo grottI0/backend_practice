@@ -112,7 +112,8 @@ def vklogin(code, request: Request):
     response = requests.get(url=f'https://oauth.vk.com/access_token', params=params)
     if response.status_code != 200:
         print(response)
-        return {'message': 'failed: not !=200(115)'}
+        print(response.json())
+        return {'message': 'failed: !=200(115)'}
     response = response.json()
     print(response)
 
