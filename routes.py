@@ -108,15 +108,22 @@ def vklogin(code, request: Request):
     secret_key = os.environ['VK_SECRET_KEY']
     params = {'client_id': client_id,
               'client_secret': secret_key,
-              'code': code}
-    response = requests.get(url=f'https://oauth.vk.com/access_token', params=params)
+              'code': code,
+              'redirect_uri': 'backendgrotio.herokuapp.com/vklogin'}
+    response = requests.get(url=f'https://oauth.vk.com/access_token', params=params, allow_redirects=True)
     if response.status_code != 200:
         print(response)
         print(response.json())
-        return {'message': 'failed: !=200(115)'}
+        return {'message': 'failed: !=200(117)'}
     response = response.json()
+    if not response['access_token']:
+        print(response)
+        return {'message': 'failed: no token (120)'}
+    elif not response['email']:
+        print(response)
+        return {'message': 'failed: no email (124)'}
     print(response)
-
+    return {'message': 'ok'}
 
 # Удаление текущей сессии пользователя из базы данных и куки
 @router.get('/logout',  tags=['main'])
