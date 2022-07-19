@@ -103,13 +103,16 @@ def vklogin(code, request: Request):
     print(str(request.query_params))
     print(code)
     if not code:
-        return {'message': 'failed'}
+        return {'message': 'failed: not code(106)'}
     client_id = os.environ['VK_ID']
     secret_key = os.environ['VK_SECRET_KEY']
-    response = requests.get(
-        url=f'https://oauth.vk.com/access_token?client_id={client_id}&client_secret={secret_key}&code={code})')
+    params = {'client_id': client_id,
+              'client_secret': secret_key,
+              'code': code}
+    response = requests.get(url=f'https://oauth.vk.com/access_token', params=params)
     if response.status_code != 200:
-        return {'message': 'failed'}
+        print(response)
+        return {'message': 'failed: not !=200(115)'}
     response = response.json()
     print(response)
 
