@@ -110,7 +110,8 @@ def vklogin(code, request: Request):
             'client_secret': secret_key,
             'redirect_uri': 'https://backendgrotio.herokuapp.com/vklogin',
             'code': code}
-    response = requests.post(url=f'https://oauth.vk.com/access_token', json=body, allow_redirects=True)
+    url = f'https://oauth.vk.com/access_token?client_id={client_id}&client_secret={secret_key}&redirect_uri=https://backendgrotio.herokuapp.com/vklogin&code={code}'
+    response = requests.get(url=f'https://oauth.vk.com/access_token', params=body, allow_redirects=True)
     if response.status_code != 200:
         print(response)
         print(response.json())
