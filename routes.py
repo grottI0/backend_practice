@@ -104,7 +104,7 @@ def vklogin(code, request: Request):
     print(code)
     if not code:
         return {'message': 'failed: not code(106)'}
-    client_id = int(os.environ['VK_ID'])
+    client_id = str(os.environ['VK_ID'])
     secret_key = os.environ['VK_SECRET_KEY']
     body = {'client_id': client_id,
             'client_secret': secret_key,
