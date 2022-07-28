@@ -29,8 +29,9 @@ class User(Base):
     full_name = Column(String, nullable=False)
     email = Column(String, nullable=False)
     password = Column(String, nullable=False)
-    roles = Column(String, nullable=False)
+    roles = Column(String)
     blocked = Column(BOOLEAN, default=False)
+    vk_id = Column(String, unique=True)
 
 
 class Article(Base):

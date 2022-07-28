@@ -35,7 +35,16 @@ def get_current_user(session_id):
     user = db_session.query(User).join(Session).filter(and_(Session.session_id == session_id,
                                                             Session.user_id == User.id)).one_or_none()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        if '$' in session_id:
+            user_id, access_token = session_id.split('$')[0], session_id.split('$')[1]
+            r = requests.get(
+                url=f'https://api.vk.com/method/users.get?user_ids={user_id}&access_token={access_token}&v=5.131')
+            if r.json()['response']:
+                user = db_session.query(User).filter(User.vk_id == str(user_id)).one_or_none()
+                if user is None:
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        else:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
     return user
 
@@ -99,9 +108,7 @@ def auth_with_vk(request: Request):
 
 
 @router.get('/vklogin')
-def vklogin(code, request: Request, db=connection):
-    print(str(request.query_params))
-    print(code)
+def vklogin(code, request: Request):
     if not code:
         return {'message': 'failed: not code(106)'}
     client_id = str(os.environ['VK_ID'])
@@ -120,15 +127,26 @@ def vklogin(code, request: Request, db=connection):
     elif not res['email']:
         return {'message': 'no email'}
     print(res)
+
+    user = db_session.query(User).filter(User.email == res['email']).one_or_none()
+    if not user:
+        data = requests.get(
+            url=f'https://api.vk.com/method/users.get?user_ids={res["user_id"]}&access_token={res["access_token"]}&v=5.131')
+        print('response:', data.json())
+        first_name = data.json()['response'][0]['first_name']
+        last_name = data.json()['response'][0]['last_name']
+        full_name = last_name + ' ' + first_name
+        new_user = User(full_name=full_name,
+                        email=res['email'],
+                        roles='reader',
+                        vk_id=data.json()['user_id'])
+        db_session.add(new_user)
+        db_session.commit()
+
     '''response = JSONResponse(content={'message': 'ok'})
-    response.set_cookie(key='session_id', value=res['access_token'], expires=res['expires_in'],
-                        httponly=True, secure=True)
-'''
-    data = requests.get(
-        url=f'https://api.vk.com/method/users.get?user_ids={res["user_id"]}&access_token={res["access_token"]}&v=5.131')
-    print('response:', data.json())
-    '''user = User()
-    return response'''
+    response.set_cookie(key='session_id', value=f"{res['user_id']}${res['access_token']}", expires=res['expires_in'],
+                        httponly=True, secure=True)'''
+    # return response
 
 
 # Удаление текущей сессии пользователя из базы данных и куки

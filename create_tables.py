@@ -14,9 +14,10 @@ def create_tables():
         id SERIAL NOT NULL PRIMARY KEY,
         full_name VARCHAR(256) NOT NULL,
         email VARCHAR(256) NOT NULL UNIQUE,
-        password VARCHAR(256) NOT NULL,
+        password VARCHAR(256),
         roles VARCHAR(256) NOT NULL,
-        blocked BOOLEAN DEFAULT false);''')
+        blocked BOOLEAN DEFAULT false),
+        vk_id VARCHAR(256) UNIQUE;''')
         session.commit()
         session.close()
     except ProgrammingError:
