@@ -99,7 +99,7 @@ def auth_with_vk(request: Request):
 
 
 @router.get('/vklogin')
-def vklogin(code, request: Request):
+def vklogin(code, request: Request, db=connection):
     print(str(request.query_params))
     print(code)
     if not code:
@@ -110,21 +110,26 @@ def vklogin(code, request: Request):
             'client_secret': secret_key,
             'redirect_uri': 'https://backendgrotio.herokuapp.com/vklogin',
             'code': code}
-    url = f'https://oauth.vk.com/access_token?client_id={client_id}&client_secret={secret_key}&redirect_uri=https://backendgrotio.herokuapp.com/vklogin&code={code}'
-    response = requests.get(url=f'https://oauth.vk.com/access_token', params=body, allow_redirects=True)
-    if response.status_code != 200:
-        print(response)
-        print(response.json())
-        return {'message': 'failed: !=200(117)'}
-    response = response.json()
-    if not response['access_token']:
-        print(response)
-        return {'message': 'failed: no token (120)'}
-    elif not response['email']:
-        print(response)
-        return {'message': 'failed: no email (124)'}
-    print(response)
-    return {'message': 'ok'}
+    res = requests.get(url=f'https://oauth.vk.com/access_token', params=body, allow_redirects=True)
+    if res.status_code != 200:
+        print(res.json())
+        return {'message': 'failed'}
+    res = res.json()
+    if not res['access_token']:
+        return {'message': 'no token'}
+    elif not res['email']:
+        return {'message': 'no email'}
+    print(res)
+    '''response = JSONResponse(content={'message': 'ok'})
+    response.set_cookie(key='session_id', value=res['access_token'], expires=res['expires_in'],
+                        httponly=True, secure=True)
+'''
+    data = requests.get(
+        url=f'https://api.vk.com/method/users.get?user_ids={res["user_id"]}&access_token={res["access_token"]}')
+    print('response:', data.json())
+    '''user = User()
+    return response'''
+
 
 # Удаление текущей сессии пользователя из базы данных и куки
 @router.get('/logout',  tags=['main'])
