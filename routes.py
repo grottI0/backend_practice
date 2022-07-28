@@ -125,7 +125,7 @@ def vklogin(code, request: Request, db=connection):
                         httponly=True, secure=True)
 '''
     data = requests.get(
-        url=f'https://api.vk.com/method/users.get?user_ids={res["user_id"]}&access_token={res["access_token"]}')
+        url=f'https://api.vk.com/method/users.get?user_ids={res["user_id"]}&access_token={res["access_token"]}&v=5.131')
     print('response:', data.json())
     '''user = User()
     return response'''
