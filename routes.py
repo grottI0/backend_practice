@@ -40,7 +40,7 @@ def get_current_user(session_id):
             r = requests.get(
                 url=f'https://api.vk.com/method/users.get?user_ids={user_id}&access_token={access_token}&v=5.131')
             if r.json()['response']:
-                user = db_session.query(User).filter(User.vk_id == str(user_id)).one_or_none()
+                user = db_session.query(User).filter(User.vk_id == user_id).one_or_none()
                 if user is None:
                     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
         else:
@@ -125,7 +125,7 @@ def vklogin(code, request: Request):
     if not res['access_token']:
         return {'message': 'no token'}
 
-    user = db_session.query(User).filter(User.vk_id == res['user_id']).one_or_none()
+    user = db_session.query(User).filter(User.vk_id == str(res['user_id'])).one_or_none()
 
     if not user:
         data = requests.get(
