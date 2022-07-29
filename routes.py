@@ -101,7 +101,7 @@ def sign_in(body: SignInForm):
     return response
 
 
-@router.get('/auth_with_vk')
+@router.get('/auth_with_vk', tags=['html_only'])
 def auth_with_vk(request: Request):
     client_id = os.environ['VK_ID']
     return templates.TemplateResponse("vk_auth.html", {'request': request, 'client_id': client_id})
@@ -110,7 +110,7 @@ def auth_with_vk(request: Request):
 @router.get('/vklogin')
 def vklogin(code, request: Request):
     if not code:
-        return {'message': 'failed: not code(106)'}
+        return {'message': 'no code'}
     client_id = str(os.environ['VK_ID'])
     secret_key = os.environ['VK_SECRET_KEY']
     body = {'client_id': client_id,
@@ -124,29 +124,40 @@ def vklogin(code, request: Request):
     res = res.json()
     if not res['access_token']:
         return {'message': 'no token'}
-    elif not res['email']:
-        return {'message': 'no email'}
-    print(res)
 
-    user = db_session.query(User).filter(User.email == res['email']).one_or_none()
+    user = db_session.query(User).filter(User.vk_id == res['user_id']).one_or_none()
+
     if not user:
         data = requests.get(
             url=f'https://api.vk.com/method/users.get?user_ids={res["user_id"]}&access_token={res["access_token"]}&v=5.131')
-        print('response:', data.json())
         first_name = data.json()['response'][0]['first_name']
         last_name = data.json()['response'][0]['last_name']
-        full_name = last_name + ' ' + first_name
-        new_user = User(full_name=full_name,
-                        email=res['email'],
-                        roles='reader',
-                        vk_id=data.json()['user_id'])
-        db_session.add(new_user)
-        db_session.commit()
 
-    '''response = JSONResponse(content={'message': 'ok'})
-    response.set_cookie(key='session_id', value=f"{res['user_id']}${res['access_token']}", expires=res['expires_in'],
-                        httponly=True, secure=True)'''
-    # return response
+        response = templates.TemplateResponse("signup_with_vk.html",
+                                              {'request': request, 'first_name': first_name, 'last_name': last_name})
+    else:
+        response = JSONResponse(content={'message': 'ok'})
+
+    response.set_cookie(key='session_id', value=f"{res['user_id']}${res['access_token']}",
+                        expires=res['expires_in'], httponly=True, secure=True)
+    return response
+
+
+@router.post('/sign_up_with_vk')
+def sign_up_with_vk(body: SignUpForm, session_id: Cookie(default=None)):
+    vk_id = session_id.split('$')[0]
+    user = db_session.query(User).filter(User.vk_id == vk_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    new_user = User(full_name=f'{body.last_name} {body.first_name}',
+                    email=body.email,
+                    password=body.password,
+                    roles='reader',
+                    vk_id=vk_id)
+    db_session.add(new_user)
+    db_session.commit()
+
+    return {'message': 'ok'}
 
 
 # Удаление текущей сессии пользователя из базы данных и куки
