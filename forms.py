@@ -2,14 +2,11 @@ from pydantic import BaseModel
 from typing import Optional
 
 
-class SignUpVKForm(BaseModel):
+class SignUpForm(BaseModel):
     first_name: str
     last_name: str
     email: str
     password: str
-
-
-class SignUpForm(SignUpVKForm):
     admin: Optional[bool] = False
 
 

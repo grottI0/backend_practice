@@ -13,7 +13,7 @@ from sqlalchemy.exc import DataError, IntegrityError
 from pydantic import conint
 import requests
 
-from forms import SignUpForm, DraftCreateForm, DraftEditForm, ApprovedEditForm, RejectForm, SignInForm, ChangeRolesForm, SignUpVKForm
+from forms import SignUpForm, DraftCreateForm, DraftEditForm, ApprovedEditForm, RejectForm, SignInForm, ChangeRolesForm
 from database import connection, User, Article, Comment, Rating, Section, SessionTable as Session
 
 
@@ -144,14 +144,15 @@ def vklogin(code, request: Request):
 
 
 @router.post('/sign_up_with_vk')
-def sign_up_with_vk(body: SignUpVKForm, session_id: Union[str, None] = Cookie(default=None)):
+def sign_up_with_vk(first_name, last_name, email, password,
+                    session_id: Union[str, None] = Cookie(default=None)):
     vk_id = session_id.split('$')[0]
     user = db_session.query(User).filter(User.vk_id == vk_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-    new_user = User(full_name=f'{body.last_name} {body.first_name}',
-                    email=body.email,
-                    password=body.password,
+    new_user = User(full_name=f'{last_name} {first_name}',
+                    email=email,
+                    password=password,
                     roles='reader',
                     vk_id=vk_id)
     db_session.add(new_user)
