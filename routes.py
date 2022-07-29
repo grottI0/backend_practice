@@ -144,7 +144,7 @@ def vklogin(code, request: Request):
 
 
 @router.post('/sign_up_with_vk')
-def sign_up_with_vk(body: SignUpForm, session_id: Cookie(default=None)):
+def sign_up_with_vk(body: SignUpForm, session_id: Union[str, None] = Cookie(default=None)):
     vk_id = session_id.split('$')[0]
     user = db_session.query(User).filter(User.vk_id == vk_id)
     if user is None:
