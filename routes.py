@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Union
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, status, Cookie, Request
+from fastapi import APIRouter, HTTPException, status, Cookie, Request, Form
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from passlib.context import CryptContext
@@ -144,7 +144,8 @@ def vklogin(code, request: Request):
 
 
 @router.post('/sign_up_with_vk')
-def sign_up_with_vk(first_name, last_name, email, password,
+def sign_up_with_vk(last_name: str = Form(), first_name: str = Form(),
+                    email: str = Form(), password: str = Form(),
                     session_id: Union[str, None] = Cookie(default=None)):
     vk_id = session_id.split('$')[0]
     user = db_session.query(User).filter(User.vk_id == vk_id)
