@@ -133,7 +133,7 @@ def vklogin(code, request: Request):
         first_name = data.json()['response'][0]['first_name']
         last_name = data.json()['response'][0]['last_name']
 
-        response = templates.TemplateResponse("signup_with_vk.html",
+        response = templates.TemplateResponse('signup_with_vk.html',
                                               {'request': request, 'first_name': first_name, 'last_name': last_name})
     else:
         response = JSONResponse(content={'message': 'ok'})
@@ -148,12 +148,15 @@ def sign_up_with_vk(last_name: str = Form(), first_name: str = Form(),
                     email: str = Form(), password: str = Form(),
                     session_id: Union[str, None] = Cookie(default=None)):
     vk_id = session_id.split('$')[0]
-    user = db_session.query(User).filter(User.vk_id == vk_id)
-    if user is None:
+
+    user = db_session.query(User).filter(or_(User.vk_id == vk_id,
+                                             User.email == email)).one_or_none()
+    if user is not None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+
     new_user = User(full_name=f'{last_name} {first_name}',
                     email=email,
-                    password=password,
+                    password=get_password_hash(password),
                     roles='reader',
                     vk_id=vk_id)
     db_session.add(new_user)
