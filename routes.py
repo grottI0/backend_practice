@@ -39,10 +39,13 @@ def get_current_user(session_id):
             user_id, access_token = session_id.split('$')[0], session_id.split('$')[1]
             r = requests.get(
                 url=f'https://api.vk.com/method/users.get?user_ids={user_id}&access_token={access_token}&v=5.131')
-            if r.json()['response']:
-                user = db_session.query(User).filter(User.vk_id == user_id).one_or_none()
-                if user is None:
-                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+            try:
+                if r.json()['response']:
+                    user = db_session.query(User).filter(User.vk_id == user_id).one_or_none()
+                    if user is None:
+                        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+            except KeyError:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
         else:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
