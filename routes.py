@@ -1,3 +1,5 @@
+# TODO: secure cookies
+
 import os
 import hashlib
 from datetime import datetime
@@ -32,6 +34,10 @@ def get_password_hash(password):
 
 
 def get_current_user(session_id):
+    if session_id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail='User does not exist')
+
     user = db_session.query(User).join(Session).filter(and_(Session.session_id == session_id,
                                                             Session.user_id == User.id)).one_or_none()
     if user is None:
@@ -43,11 +49,14 @@ def get_current_user(session_id):
                 if r.json()['response']:
                     user = db_session.query(User).filter(User.vk_id == user_id).one_or_none()
                     if user is None:
-                        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+                        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                            detail='User does not exist or wrong vk token')
             except KeyError:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                    detail='Wrong vk token')
         else:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail='User does not exist')
 
     return user
 
@@ -61,7 +70,8 @@ def registration(body: SignUpForm,):
     email = body.email.lower()
     password = body.password
     if first_name == '' or email == '' or password == '' or last_name == '':
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='Empty input field')
 
     if body.admin:
         roles = 'reader writer moderator'
@@ -70,7 +80,8 @@ def registration(body: SignUpForm,):
 
     user = db_session.query(User.id).filter(User.email == body.email).one_or_none()
     if user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='User with this email already exists')
     else:
         user = User(full_name=full_name,
                     email=body.email,
@@ -86,10 +97,12 @@ def registration(body: SignUpForm,):
 def sign_in(body: SignInForm):
     user = db_session.query(User).filter(User.email == body.email).one_or_none()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail='User with this email does not exist')
 
     if not verify_password(body.password, user.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail='Wrong password')
 
     content = {'message': 'session created'}
     response = JSONResponse(content=content)
@@ -104,13 +117,15 @@ def sign_in(body: SignInForm):
     return response
 
 
+# Ссылка для авторизации через ВК
 @router.get('/auth_with_vk', tags=['html_only'])
 def auth_with_vk(request: Request):
     client_id = os.environ['VK_ID']
-    return templates.TemplateResponse("vk_auth.html", {'request': request, 'client_id': client_id})
+    return templates.TemplateResponse('vk_auth.html', {'request': request, 'client_id': client_id})
 
 
-@router.get('/vklogin')
+# Обработка ответа от VK API
+@router.get('/vklogin', tags=['dont use'])
 def vklogin(code, request: Request):
     if not code:
         return {'message': 'no code'}
@@ -146,7 +161,8 @@ def vklogin(code, request: Request):
     return response
 
 
-@router.post('/sign_up_with_vk')
+# Стоздание пользователя с данными из ВК
+@router.post('/sign_up_with_vk', tags=['dont use'])
 def sign_up_with_vk(last_name: str = Form(), first_name: str = Form(),
                     email: str = Form(), password: str = Form(),
                     session_id: Union[str, None] = Cookie(default=None)):
@@ -154,8 +170,9 @@ def sign_up_with_vk(last_name: str = Form(), first_name: str = Form(),
 
     user = db_session.query(User).filter(or_(User.vk_id == vk_id,
                                              User.email == email)).one_or_none()
-    if user is not None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    if user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail='User already exists')
 
     new_user = User(full_name=f'{last_name} {first_name}',
                     email=email,
@@ -219,12 +236,14 @@ def get_any_user(user_id: int, session_id: Union[str, None] = Cookie(default=Non
     current_user = get_current_user(session_id)
 
     if current_user.blocked and user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     user = db_session.query(User).filter(User.id == user_id).one_or_none()
 
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='User with this id does not exist')
 
     articles = db_session.query(Article.authors, Article.title).all()
     titles = dict()
@@ -243,46 +262,57 @@ def get_any_user(user_id: int, session_id: Union[str, None] = Cookie(default=Non
             'articles': titles}
 
 
-# Меняет статус пользователя на
-# "заблокирован" (в этом случае удаляет комментарии и оценки пользователя, а статус его статей изменяет на черновик)
-# или "не заблокирован"
-@router.get('/user/{block_or_unblock}', tags=['users'])
-def blocking_user(user_id: int, block_or_unblock: str, session_id: Union[str, None] = Cookie(default=None)):
+# Меняет статус пользователя на заблокирован, удаляет все комментарии и оценки пользователя,
+# а состояние его статей меняет на "черновик"
+@router.get('/user/block', tags=['users'])
+def block_user(user_id: int, session_id: Union[str, None] = Cookie(default=None)):
     current_user = get_current_user(session_id)
 
     if 'moderator' not in current_user.roles or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     user = db_session.query(User).filter(and_(User.id == user_id, User.id != current_user.id)).one_or_none()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='User with this id does not exist')
+    user.blocked = True
+    db_session.query(Comment).filter(Comment.user_id == user.id).delete()
+    articles = db_session.query(Article).filter(Article.creator == str(user.id)).all()
+    for i in articles:
+        i.status = 'draft'
 
-    if block_or_unblock == 'block':
-        user.blocked = True
-        db_session.query(Comment).filter(Comment.user_id == user.id).delete()
-        articles = db_session.query(Article).filter(Article.creator == str(user.id)).all()
-        for i in articles:
-            i.status = 'draft'
+    ratings = db_session.query(Rating).filter(Rating.user_id == user.id).all()
+    if ratings:
+        for i in ratings:
+            rated_article = db_session.query(Article).filter(Article.id == i.article_id).one_or_none()
+            try:
+                rated_article.rating = (rated_article.rating * rated_article.number_of_ratings - i.rating) // \
+                                       (rated_article.number_of_ratings - 1)
+            except ZeroDivisionError:
+                rated_article.rating = 0
+            rated_article.number_of_ratings -= 1
 
-        ratings = db_session.query(Rating).filter(Rating.user_id == user.id).all()
-        if ratings is None:
-            pass
-        else:
-            for i in ratings:
-                rated_article = db_session.query(Article).filter(Article.id == i.article_id).one_or_none()
-                try:
-                    rated_article.rating = (rated_article.rating * rated_article.number_of_ratings - i.rating) // \
-                                           (rated_article.number_of_ratings - 1)
-                except ZeroDivisionError:
-                    rated_article.rating = 0
-                rated_article.number_of_ratings -= 1
+    db_session.query(Rating).filter(Rating.user_id == user.id).delete()
+    db_session.commit()
 
-        db_session.query(Rating).filter(Rating.user_id == user.id).delete()
+    return {'message': 'ok'}
 
-    elif block_or_unblock == 'unblock':
-        user.blocked = False
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+
+# Меняет статус пользователя на "не заблокирована"
+@router.get('/user/unblock', tags=['users'])
+def unblock_user(user_id: int, session_id: Union[str, None] = Cookie(default=None)):
+    current_user = get_current_user(session_id)
+
+    if 'moderator' not in current_user.roles or current_user.blocked:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
+
+    user = db_session.query(User).filter(and_(User.id == user_id, User.id != current_user.id)).one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='User with this id does not exist')
+    user.blocked = False
     db_session.commit()
 
     return {'message': 'ok'}
@@ -298,17 +328,20 @@ def change_roles(body: ChangeRolesForm, session_id: Union[str, None] = Cookie(de
             'writer' not in current_user.roles) or \
             current_user.blocked or \
             current_user.id == body.user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     user = db_session.query(User).filter(User.id == body.user_id).one_or_none()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='User with this id does not exist')
 
     if 'reader' not in body.roles and \
             'writer' not in body.roles and \
             'moderator' not in body.roles and \
             'admin' not in body.roles:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='Incorrect roles input')
 
     if 'admin' in body.roles:
         body.roles = 'reader writer moderator'
@@ -326,7 +359,8 @@ def create_article(body: DraftCreateForm, session_id: Union[str, None] = Cookie(
     creator_id = str(current_user.id)
 
     if 'writer' not in current_user.roles or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     if body.other_authors != '':
         other_authors_ids = body.other_authors.split()
@@ -335,17 +369,20 @@ def create_article(body: DraftCreateForm, session_id: Union[str, None] = Cookie(
             try:
                 user = db_session.query(User).filter(User.id == other_authors_ids[i]).one_or_none()
             except DataError:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Incorrect authors input')
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail='Incorrect authors input')
 
             if user is None or user.id == current_user.id or 'writer' not in user.roles:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Incorrect roles input')
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail='One of the users cannot be an author')
     else:
         other_authors_ids = []
 
     authors = f'{creator_id} {" ".join(other_authors_ids)}'
 
     if not body.title or not body.text or not body.tags:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Incorrect input')
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='Incorrect input')
     else:
         try:
             article = Article(creator=creator_id,
@@ -355,7 +392,8 @@ def create_article(body: DraftCreateForm, session_id: Union[str, None] = Cookie(
                               authors=authors,
                               status='draft')
         except IntegrityError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Article already exists')
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail='Article already exists')
         else:
             db_session.add(article)
             db_session.commit()
@@ -375,11 +413,13 @@ def get_disapproved(title: str, session_id: Union[str, None] = Cookie(default=No
                                                         Article.status == 'rejected'))).one_or_none()
 
     if article is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='This articles does not exist')
 
     elif (current_user_id not in article.authors.split() and current_user_id not in article.editors.split()) \
             or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     if article.status == 'rejected':
         article.status = 'draft'
@@ -396,17 +436,20 @@ def edit_draft(body: DraftEditForm, session_id: Union[str, None] = Cookie(defaul
     current_user_id = str(current_user.id)
 
     if not body.title or not body.text or not body.tags:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='Empty input field')
 
     article = db_session.query(Article).filter(and_(Article.title == body.title,
                                                     Article.status == 'draft')).one_or_none()
 
     if article is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='This article does not exist')
 
     elif (current_user_id not in article.authors.split() and current_user_id not in article.editors.split()) \
             or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     article.text = body.text
     article.tags = body.tags
@@ -422,12 +465,14 @@ def publish_article(title: str, session_id: Union[str, None] = Cookie(default=No
     current_user_id = str(current_user.id)
 
     if current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     article = db_session.query(Article).filter(and_(Article.creator == current_user_id,
                                                     Article.title == title)).one_or_none()
     if article is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='This article does not exist')
 
     article.status = 'published'
     db_session.commit()
@@ -441,7 +486,8 @@ def list_to_approve(session_id: Union[str, None] = Cookie(default=None)):
     current_user = get_current_user(session_id)
 
     if 'moderator' not in current_user.roles or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     articles = db_session.query(Article).filter(Article.status == 'published').all()
     response = dict()
@@ -462,14 +508,17 @@ def approve_article(body: ApprovedEditForm, session_id: Union[str, None] = Cooki
     current_user = get_current_user(session_id)
 
     if 'moderator' not in current_user.roles or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
     if body.title == '':
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='Empty title')
 
     article = db_session.query(Article).filter(and_(Article.title == body.title,
                                                     Article.status == 'published')).one_or_none()
     if article is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='This article does not exist')
 
     if body.edited_text != '':
         article.text = body.edited_text
@@ -479,20 +528,25 @@ def approve_article(body: ApprovedEditForm, session_id: Union[str, None] = Cooki
         try:
             user = db_session.query(User).filter(User.id == i).one_or_none()
         except DataError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail='Incorrect input')
 
         if user is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail='One of editors does not exist')
 
         elif user.id == current_user.id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail='Do not use your id in "other editors" field')
 
-        elif article.editors is not None:
+        elif article.editors:
             if str(user.id) in article.editors:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail='One of the users is already editor of this article')
 
         elif 'moderator' not in user.roles and 'writer' not in user.roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail='One of the users cannot be an editor')
 
     article.editors = f'{str(current_user.id)} {" ".join(other_editors_ids)}'
 
@@ -509,12 +563,14 @@ def reject_article(body: RejectForm, session_id: Union[str, None] = Cookie(defau
     current_user = get_current_user(session_id)
 
     if 'moderator' not in current_user.roles or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     article = db_session.query(Article).filter(and_(Article.title == body.title,
                                                     Article.status == 'published')).one_or_none()
     if article is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='This article does not exist')
 
     moderators_email = db_session.query(User.email).filter(User.id == current_user.id).one_or_none()
     message = f' !MESSAGE FROM MODERATOR ({moderators_email[0]}): {body.message}'
@@ -531,10 +587,12 @@ def to_draft(title: str, session_id: Union[str, None] = Cookie(default=None)):
 
     article = db_session.query(Article).filter(Article.title == title).one_or_none()
     if article is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='This article does not exist')
 
     if str(current_user.id) not in article.authors.split() or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     if article.status == 'approved' or article.status == 'rejected':
         article.status = 'draft'
@@ -542,7 +600,8 @@ def to_draft(title: str, session_id: Union[str, None] = Cookie(default=None)):
         db_session.commit()
         return {'message': 'status changed'}
     else:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='Status of this article cannot be changed')
 
 
 # Добавление читателем коментария к статье
@@ -551,13 +610,15 @@ def create_comment(title: str, text: str, session_id: Union[str, None] = Cookie(
     current_user = get_current_user(session_id)
 
     if 'reader' not in current_user.roles or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     article = db_session.query(Article).filter(and_(Article.title == title,
                                                     Article.status == 'approved')).one_or_none()
 
     if article is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='This article does not exist')
 
     comment = Comment(text=text,
                       article_id=article.id,
@@ -571,16 +632,15 @@ def create_comment(title: str, text: str, session_id: Union[str, None] = Cookie(
 @router.get('/article/delete_comment', tags=['articles'])
 def delete_comment(comment_id: int, session_id: Union[str, None] = Cookie(default=None)):
     current_user = get_current_user(session_id)
-    if current_user.blocked or 'moderator' not in current_user.roles:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     comment = db_session.query(Comment).filter(Comment.id == comment_id).one_or_none()
     if comment is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    author_id = comment.user_id
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='This comment does not exist')
 
-    if author_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    if current_user.blocked or 'moderator' not in current_user.roles or comment.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     db_session.query(Comment).filter(Comment.id == comment_id).delete()
     db_session.commit()
@@ -593,12 +653,14 @@ def get_article(title: str, session_id: Union[str, None] = Cookie(default=None))
     current_user = get_current_user(session_id)
 
     if current_user.blocked or 'reader' not in current_user.roles:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     article = db_session.query(Article).filter(and_(Article.title == title,
                                                     Article.status == 'approved')).one_or_none()
     if article is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='The article does not exist')
     article.readers += 1
     db_session.commit()
 
@@ -606,9 +668,6 @@ def get_article(title: str, session_id: Union[str, None] = Cookie(default=None))
                                      Comment.text,
                                      Comment.user_id,
                                      User.full_name).join(User).filter(Comment.article_id == article.id).all()
-
-    if comments_list is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     authors = ''
     authors_ids = article.authors.split()
@@ -641,7 +700,8 @@ def search_articles(rating: str = None, number_of_readers: str = None, title: st
     current_user = get_current_user(session_id)
 
     if 'reader' not in current_user.roles or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     if rating:
         articles = db_session.query(Article).filter(and_(Article.status == 'approved',
@@ -651,7 +711,7 @@ def search_articles(rating: str = None, number_of_readers: str = None, title: st
                                                          Article.readers == number_of_readers)).all()
     elif title:
         article = db_session.query(Article).filter(and_(Article.status == 'approved',
-                                                        Article.title == title)).one_or_none()
+                                                        Article.title == title)).all()
         articles = [article, ]
     elif content:
         all_articles = db_session.query(Article).filter(Article.status == 'approved').all()
@@ -690,14 +750,13 @@ def search_articles(rating: str = None, number_of_readers: str = None, title: st
             articles = db_session.query(Article).filter(and_(Article.section_id == section.id,
                                                              Article.status == 'approved')).all()
         except AttributeError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail='The section does not exist')
     else:
         articles = db_session.query(Article).filter(Article.status == 'approved').all()
 
     response = dict()
-    if articles is None:
-        return {}
-    elif not articles or articles[0] is None:
+    if not articles or articles[0] is None:
         return {}
 
     for i in articles:
@@ -711,7 +770,8 @@ def search_articles(rating: str = None, number_of_readers: str = None, title: st
 def get_new_articles(session_id: Union[str, None] = Cookie(default=None)):
     current_user = get_current_user(session_id)
     if current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     articles = db_session.query(Article).filter(Article.status == 'approved').order_by(Article.approved_at.desc()).all()
     if articles is None:
@@ -734,17 +794,20 @@ def rate_article(title: str, rating: conint(gt=0, lt=6),
                  session_id: Union[str, None] = Cookie(default=None)):
     current_user = get_current_user(session_id)
     if 'reader' not in current_user.roles or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     article = db_session.query(Article).filter(and_(Article.title == title,
                                                     Article.status == 'approved')).one_or_none()
     if article is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='The article does not exist')
 
-    existed_rating = db_session.query(Rating).filter(and_(Rating.user_id == current_user.id,
-                                                          Rating.article_id == article.id)).one_or_none()
-    if existed_rating is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+    existing_rating = db_session.query(Rating).filter(and_(Rating.user_id == current_user.id,
+                                                           Rating.article_id == article.id)).one_or_none()
+    if existing_rating:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='You have already rated this article')
 
     article.rating = int((article.rating * article.number_of_ratings + rating) / (article.number_of_ratings + 1))
     article.number_of_ratings += 1
@@ -763,13 +826,15 @@ def add_to_section(article_title: str, section_name: str, session_id: Union[str,
     current_user = get_current_user(session_id)
 
     if 'moderator' not in current_user.roles or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
     article = db_session.query(Article).filter(Article.title == article_title).one_or_none()
     section = db_session.query(Section).filter(Section.name == section_name).one_or_none()
 
     if article is None or section is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='The article or section does not exist')
 
     article.section_id = section.id
     db_session.commit()
@@ -782,10 +847,11 @@ def create_section(name: str, session_id: Union[str, None] = Cookie(default=None
     current_user = get_current_user(session_id)
 
     if 'moderator' not in current_user.roles or current_user.blocked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail='Access denied')
 
-    existed_section = db_session.query(Section).filter(Section.name == name)
-    if existed_section is None:
+    existing_section = db_session.query(Section).filter(Section.name == name)
+    if existing_section is None:
         section = Section(name=name,
                           creator_id=current_user.id)
 
@@ -793,4 +859,5 @@ def create_section(name: str, session_id: Union[str, None] = Cookie(default=None
         db_session.commit()
         return {'message': 'section created'}
     else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='This section already exists')
