@@ -33,7 +33,7 @@ def get_password_hash(password):
 def get_current_user(session_id):
     if session_id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail='User does not exist')
+                            detail='You do not have session id')
 
     user = db_session.query(User).join(Session).filter(and_(Session.session_id == session_id,
                                                             Session.user_id == User.id)).one_or_none()
@@ -242,12 +242,12 @@ def get_any_user(user_id: int, session_id: Union[str, None] = Cookie(default=Non
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail='User with this id does not exist')
 
-    articles = db_session.query(Article.authors, Article.title).all()
+    articles = db_session.query(Article.authors, Article.title, Article.status).all()
     titles = dict()
     count = 0
 
     for i in articles:
-        if str(user.id) in i.authors.split():
+        if str(user.id) in i.authors.split() and i.status == 'approved':
             count += 1
             titles.update({count: i.title})
 
@@ -370,7 +370,7 @@ def create_article(body: DraftCreateForm, session_id: Union[str, None] = Cookie(
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                     detail='Incorrect authors input')
 
-            if user is None or user.id == current_user.id or 'writer' not in user.roles:
+            if user is None or user.id == current_user.id or 'writer' not in user.roles or user.blocked:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                     detail='One of the users cannot be an author')
     else:
