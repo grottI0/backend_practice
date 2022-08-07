@@ -1,13 +1,10 @@
-# TODO: secure cookies
-
 import os
-import hashlib
 from datetime import datetime
 from typing import Union
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status, Cookie, Request, Form
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from passlib.context import CryptContext
 from sqlalchemy import and_, or_
@@ -107,7 +104,7 @@ def sign_in(body: SignInForm):
     content = {'message': 'session created'}
     response = JSONResponse(content=content)
     session_id = str(uuid4())
-    response.set_cookie(key="session_id", value=session_id, httponly=True)
+    response.set_cookie(key="session_id", value=session_id, httponly=True, secure=True)
 
     session = Session(user_id=user.id,
                       session_id=session_id)
@@ -369,6 +366,7 @@ def create_article(body: DraftCreateForm, session_id: Union[str, None] = Cookie(
             try:
                 user = db_session.query(User).filter(User.id == other_authors_ids[i]).one_or_none()
             except DataError:
+                db_session.rollback()
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                     detail='Incorrect authors input')
 
@@ -392,6 +390,7 @@ def create_article(body: DraftCreateForm, session_id: Union[str, None] = Cookie(
                               authors=authors,
                               status='draft')
         except IntegrityError:
+            db_session.rollback()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail='Article already exists')
         else:
@@ -528,6 +527,7 @@ def approve_article(body: ApprovedEditForm, session_id: Union[str, None] = Cooki
         try:
             user = db_session.query(User).filter(User.id == i).one_or_none()
         except DataError:
+            db_session.rollback()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail='Incorrect input')
 
