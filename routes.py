@@ -278,6 +278,7 @@ def block_user(user_id: int, session_id: Union[str, None] = Cookie(default=None)
     articles = db_session.query(Article).filter(Article.creator == str(user.id)).all()
     for i in articles:
         i.status = 'draft'
+        i.approved_at = None
 
     ratings = db_session.query(Rating).filter(Rating.user_id == user.id).all()
     if ratings:
