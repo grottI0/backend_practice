@@ -191,8 +191,9 @@ def delete_session(session_id: Union[str, None] = Cookie(default=None)):
     response = JSONResponse(content=content)
     response.delete_cookie(key='session_id', httponly=True)
 
-    db_session.query(Session).filter(Session.session_id == session_id).delete()
-    db_session.commit()
+    if db_session.query(Session).filter(Session.session_id == session_id).one_or_none():
+        db_session.query(Session).filter(Session.session_id == session_id).delete()
+        db_session.commit()
 
     return response
 
@@ -220,9 +221,10 @@ def delete_other_sessions(session_id: Union[str, None] = Cookie(default=None)):
     content = {'message': 'other sessions deleted'}
     response = JSONResponse(content=content)
 
-    db_session.query(Session).filter(and_(Session.user_id == current_user.id,
-                                          Session.session_id != session_id)).delete()
-    db_session.commit()
+    if db_session.query(Session).filter(Session.session_id == session_id).first():
+        db_session.query(Session).filter(and_(Session.user_id == current_user.id,
+                                              Session.session_id != session_id)).delete()
+        db_session.commit()
 
     return response
 
