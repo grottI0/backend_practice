@@ -1,6 +1,5 @@
 /venv
 /.idea/*
 /__pycache__
-runtime.txt
-Procfile
 config.py
+create_tables.py

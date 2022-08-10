@@ -1,9 +1,10 @@
 import os
 
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Text, BOOLEAN
+from sqlalchemy import create_engine, MetaData, Column, Integer, String, ForeignKey, Text, BOOLEAN
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.declarative import declarative_base
 
+metadata = MetaData()
 Base = declarative_base()
 
 
@@ -15,12 +16,16 @@ def db_url():
 
 
 DB_URL = db_url()
+engine = create_engine(DB_URL)
 
 
 def connection():
-    engine = create_engine(DB_URL)
     session = Session(bind=engine.connect())
     return session
+
+
+def create_tables():
+    Base.metadata.create_all(engine)
 
 
 class User(Base):
