@@ -25,7 +25,7 @@ def connection():
 
 
 def create_tables():
-    Base.metadata.create_all()
+    Base.metadata.create_all(bind=engine)
 
 
 class User(Base):
