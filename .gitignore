@@ -2,4 +2,3 @@
 /.idea/*
 /__pycache__
 config.py
-create_tables.py

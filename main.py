@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from database import create_tables
+from create_tables import create_tables
 from routes import router
 
 
