@@ -28,7 +28,7 @@ def create_tables():
         session.execute('''CREATE TABLE sections (
         id SERIAL NOT NULL PRIMARY KEY,
         name VARCHAR(256) NOT NULL,
-        created_by_id INTEGER REFERENCES users (id) ON DELETE CASCADE);''')
+        creator_id INTEGER REFERENCES users (id) ON DELETE CASCADE);''')
         session.commit()
         session.close()
     except ProgrammingError:
