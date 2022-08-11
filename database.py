@@ -24,7 +24,7 @@ def connection():
     return session
 
 
-def create_table():
+def create_tables():
     Base.metadata.create_all()
 
 
