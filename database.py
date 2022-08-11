@@ -39,6 +39,13 @@ class User(Base):
     vk_id = Column(String, unique=True)
 
 
+class Section(Base):
+    __tablename__ = 'sections'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+    creator_id = Column(Integer, ForeignKey('users.id', ondelete='cascade'))
+
+
 class Article(Base):
     __tablename__ = 'articles'
     id = Column(Integer, primary_key=True)
@@ -52,35 +59,28 @@ class Article(Base):
     text = Column(Text, nullable=False)
     tags = Column(String, nullable=False)
     approved_at = Column(String)
-    section_id = Column(Integer, ForeignKey('sections.id'))
+    section_id = Column(Integer, ForeignKey('sections.id', ondelete='cascade'))
     number_of_ratings = Column(Integer)
 
 
 class Comment(Base):
     __tablename__ = 'comments'
     id = Column(Integer, primary_key=True)
-    article_id = Column(Integer, ForeignKey('articles.id'))
-    user_id = Column(Integer, ForeignKey('users.id'))
+    article_id = Column(Integer, ForeignKey('articles.id', ondelete='cascade'))
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='cascade'))
     text = Column(String, nullable=False)
-
-
-class Section(Base):
-    __tablename__ = 'sections'
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False, unique=True)
-    creator_id = Column(Integer, ForeignKey('users.id'))
 
 
 class Rating(Base):
     __tablename__ = 'ratings'
     id = Column(Integer, primary_key=True)
-    article_id = Column(Integer, ForeignKey('articles.id'))
-    user_id = Column(Integer, ForeignKey('users.id'))
+    article_id = Column(Integer, ForeignKey('articles.id', ondelete='cascade'))
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='cascade'))
     rating = Column(Integer, nullable=False)
 
 
 class SessionTable(Base):
     __tablename__ = 'sessions'
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'))
+    user_id = Column(Integer, ForeignKey('users.id'), ondelete='cascade')
     session_id = Column(String, nullable=False, unique=True)
