@@ -43,7 +43,7 @@ class Section(Base):
     __tablename__ = 'sections'
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False, unique=True)
-    creator_id = Column(Integer, ForeignKey('users.id', ondelete='cascade'))
+    creator_id = Column(Integer, ForeignKey('users.id'), ondelete='cascade')
 
 
 class Article(Base):
@@ -59,23 +59,23 @@ class Article(Base):
     text = Column(Text, nullable=False)
     tags = Column(String, nullable=False)
     approved_at = Column(String)
-    section_id = Column(Integer, ForeignKey('sections.id', ondelete='cascade'))
+    section_id = Column(Integer, ForeignKey('sections.id'), ondelete='set null')
     number_of_ratings = Column(Integer)
 
 
 class Comment(Base):
     __tablename__ = 'comments'
     id = Column(Integer, primary_key=True)
-    article_id = Column(Integer, ForeignKey('articles.id', ondelete='cascade'))
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='cascade'))
+    article_id = Column(Integer, ForeignKey('articles.id'), ondelete='cascade')
+    user_id = Column(Integer, ForeignKey('users.id'), ondelete='cascade')
     text = Column(String, nullable=False)
 
 
 class Rating(Base):
     __tablename__ = 'ratings'
     id = Column(Integer, primary_key=True)
-    article_id = Column(Integer, ForeignKey('articles.id', ondelete='cascade'))
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='cascade'))
+    article_id = Column(Integer, ForeignKey('articles.id'), ondelete='cascade')
+    user_id = Column(Integer, ForeignKey('users.id'), ondelete='cascade')
     rating = Column(Integer, nullable=False)
 
 
